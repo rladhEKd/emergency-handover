@@ -57,9 +57,6 @@ function formatDate(dateString: string) {
   });
 }
 
-function formatMoney(amount: number) {
-  return amount.toLocaleString("ko-KR") + "원";
-}
 
 function TabButton({
   active,

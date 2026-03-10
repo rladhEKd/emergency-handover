@@ -60,9 +60,7 @@ export default function CampPage() {
 
   useEffect(() => {
     const savedTeams = localStorage.getItem("teams");
-
     let mergedTeams: Team[] = [];
-
     if (savedTeams) {
       try {
         const parsed = JSON.parse(savedTeams) as Team[];
@@ -74,13 +72,13 @@ export default function CampPage() {
       mergedTeams = initialTeams as Team[];
       localStorage.setItem("teams", JSON.stringify(mergedTeams));
     }
-
-    setTeams(mergedTeams);
+    // setTeams 호출을 requestAnimationFrame으로 감싸서 렌더링을 안전하게 만듦
+    window.requestAnimationFrame(() => setTeams(mergedTeams));
 
     const params = new URLSearchParams(window.location.search);
     const hackathonParam = params.get("hackathon");
     if (hackathonParam) {
-      setHackathonFilter(hackathonParam);
+      window.requestAnimationFrame(() => setHackathonFilter(hackathonParam));
     }
   }, []);
 

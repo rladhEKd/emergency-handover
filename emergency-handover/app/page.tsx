@@ -160,7 +160,7 @@ export default function HomePage() {
               marginBottom: "18px",
             }}
           >
-            EMERGENCY HANDOVER HACKATHON
+              HACKATHON WEB PLATFORM
           </div>
 
           <h1
@@ -173,9 +173,7 @@ export default function HomePage() {
               letterSpacing: "-0.03em",
             }}
           >
-            긴급 인수인계
-            <br />
-            해커톤 플랫폼
+              Hackathon Hub
           </h1>
 
           <p
@@ -187,8 +185,9 @@ export default function HomePage() {
               color: "rgba(255,255,255,0.9)",
             }}
           >
-            명세서와 예시 데이터만 남은 상황에서, 해커톤 탐색부터 팀 모집,
-            리더보드 확인까지 자연스럽게 이어지는 웹 경험을 구현했습니다.
+            다양한 해커톤을 탐색하고 팀을 모집하거나 랭킹을 확인할 수 있는 올인원 플랫폼입니다.
+            <br />
+            쉽고 빠르게 해커톤에 참여해보세요.
           </p>
 
           <div
@@ -213,7 +212,7 @@ export default function HomePage() {
                 boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
               }}
             >
-              해커톤 보러가기
+              해커톤 탐색하기
             </Link>
 
             <Link
@@ -267,7 +266,7 @@ export default function HomePage() {
               }}
             >
               <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>
-                모집중 팀
+                모집 중인 팀
               </div>
               <div style={{ fontSize: "24px", fontWeight: 900 }}>
                 {teams.filter((team) => team.isOpen).length}
@@ -292,155 +291,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-          gap: "18px",
-          marginBottom: "36px",
-        }}
-      >
-        <Link href="/hackathons">
-          <article
-            style={{
-              background: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "20px",
-              padding: "22px",
-              boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
-              minHeight: "148px",
-              cursor: "pointer",
-              transition: "transform 0.2s ease, box-shadow 0.2s ease",
-            }}
-          >
-            <div
-              style={{
-                width: "42px",
-                height: "42px",
-                borderRadius: "12px",
-                background: "#eef4ff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "19px",
-                marginBottom: "14px",
-              }}
-            >
-              🏁
-            </div>
-            <h2 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>
-              해커톤 보기
-            </h2>
-            <p style={{ margin: 0, color: "#6b7280", lineHeight: 1.65 }}>
-              해커톤 목록과 상세 정보를 빠르게 확인하세요.
-            </p>
-            <div
-              style={{
-                marginTop: "16px",
-                fontSize: "14px",
-                fontWeight: 800,
-                color: "#2563eb",
-              }}
-            >
-              바로가기 →
-            </div>
-          </article>
-        </Link>
-
-        <Link href="/camp">
-          <article
-            style={{
-              background: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "20px",
-              padding: "22px",
-              boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
-              minHeight: "148px",
-              cursor: "pointer",
-              transition: "transform 0.2s ease, box-shadow 0.2s ease",
-            }}
-          >
-            <div
-              style={{
-                width: "42px",
-                height: "42px",
-                borderRadius: "12px",
-                background: "#fff7d6",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "19px",
-                marginBottom: "14px",
-              }}
-            >
-              🤝
-            </div>
-            <h2 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>
-              팀 찾기
-            </h2>
-            <p style={{ margin: 0, color: "#6b7280", lineHeight: 1.65 }}>
-              모집중인 팀을 확인하고 팀원을 구해보세요.
-            </p>
-            <div
-              style={{
-                marginTop: "16px",
-                fontSize: "14px",
-                fontWeight: 800,
-                color: "#2563eb",
-              }}
-            >
-              바로가기 →
-            </div>
-          </article>
-        </Link>
-
-        <Link href="/rankings">
-          <article
-            style={{
-              background: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "20px",
-              padding: "22px",
-              boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
-              minHeight: "148px",
-              cursor: "pointer",
-              transition: "transform 0.2s ease, box-shadow 0.2s ease",
-            }}
-          >
-            <div
-              style={{
-                width: "42px",
-                height: "42px",
-                borderRadius: "12px",
-                background: "#ecfdf3",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "19px",
-                marginBottom: "14px",
-              }}
-            >
-              🏆
-            </div>
-            <h2 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>
-              랭킹 보기
-            </h2>
-            <p style={{ margin: 0, color: "#6b7280", lineHeight: 1.65 }}>
-              해커톤별 상위 팀과 점수를 한눈에 확인하세요.
-            </p>
-            <div
-              style={{
-                marginTop: "16px",
-                fontSize: "14px",
-                fontWeight: 800,
-                color: "#2563eb",
-              }}
-            >
-              바로가기 →
-            </div>
-          </article>
-        </Link>
-      </section>
 
       <section
         style={{
@@ -572,7 +422,7 @@ export default function HomePage() {
               OPEN TEAMS
             </div>
             <h2 style={{ margin: "0 0 18px", fontSize: "28px", fontWeight: 900 }}>
-              모집중인 팀
+              모집 중인 팀
             </h2>
 
             <div style={{ display: "grid", gap: "12px" }}>
@@ -610,7 +460,7 @@ export default function HomePage() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        모집중
+                        모집 중
                       </span>
                     </div>
 
