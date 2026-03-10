@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Container from "./ui/Container";
+import styles from "./Navbar.module.css";
 
 const navItems = [
   { href: "/", label: "메인" },
@@ -29,17 +30,20 @@ export default function Navbar() {
             justifyContent: "space-between",
             gap: "16px",
             flexWrap: "wrap",
+            padding: "0 100px",
           }}
         >
           <Link
             href="/"
+            className={styles.logo}
             style={{
               fontSize: "22px",
               fontWeight: 900,
               color: "#111827",
+              textDecoration: "none",
             }}
           >
-            Daker Hackathon Hub
+            Hackathon Hub
           </Link>
 
           <nav
@@ -53,12 +57,14 @@ export default function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
+                className={styles.navItem}
                 style={{
                   padding: "10px 14px",
                   borderRadius: "12px",
                   color: "#374151",
                   fontWeight: 700,
                   fontSize: "14px",
+                  textDecoration: "none",
                 }}
               >
                 {item.label}

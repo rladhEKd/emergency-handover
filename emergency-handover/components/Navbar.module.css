@@ -1,0 +1,20 @@
+.logo {
+  transition: opacity 0.15s ease;
+}
+
+.logo:hover {
+  opacity: 0.75;
+}
+
+.navItem {
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.navItem:hover {
+  background: #eef2ff;
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
