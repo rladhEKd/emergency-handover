@@ -1,3 +1,4 @@
+import styles from "./page.module.css";
 import Link from "next/link";
 import hackathonsData from "../data/public_hackathons.json";
 import teamsData from "../data/public_teams.json";
@@ -108,59 +109,35 @@ export default function HomePage() {
         padding: "24px 20px 72px",
       }}
     >
+      {/* HERO */}
       <section
         style={{
           position: "relative",
           overflow: "hidden",
           borderRadius: "32px",
-          padding: "52px 40px 34px",
+          padding: "52px 40px 40px",
           background:
             "linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #3b82f6 100%)",
           color: "#ffffff",
           boxShadow: "0 24px 60px rgba(30, 58, 138, 0.25)",
-          marginBottom: "24px",
+          marginBottom: "28px",
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            right: "-40px",
-            top: "-30px",
-            width: "220px",
-            height: "220px",
-            borderRadius: "999px",
-            background: "rgba(255,255,255,0.08)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            right: "120px",
-            bottom: "-70px",
-            width: "180px",
-            height: "180px",
-            borderRadius: "999px",
-            background: "rgba(255,255,255,0.06)",
-          }}
-        />
-
         <div style={{ position: "relative", zIndex: 1 }}>
           <div
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "8px",
               borderRadius: "999px",
               padding: "8px 14px",
               background: "rgba(255,255,255,0.12)",
               border: "1px solid rgba(255,255,255,0.16)",
               fontSize: "13px",
               fontWeight: 800,
-              letterSpacing: "0.04em",
               marginBottom: "18px",
             }}
           >
-              HACKATHON WEB PLATFORM
+            HACKATHON PLATFORM
           </div>
 
           <h1
@@ -170,10 +147,9 @@ export default function HomePage() {
               lineHeight: 1.14,
               fontWeight: 900,
               maxWidth: "640px",
-              letterSpacing: "-0.03em",
             }}
           >
-              Hackathon Hub
+            Hackathon Hub
           </h1>
 
           <p
@@ -190,108 +166,82 @@ export default function HomePage() {
             쉽고 빠르게 해커톤에 참여해보세요.
           </p>
 
+          {/* STAT CARDS */}
           <div
             style={{
-              display: "flex",
-              gap: "12px",
-              flexWrap: "wrap",
-              marginTop: "24px",
+              marginTop: "26px",
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: "14px",
             }}
           >
             <Link
               href="/hackathons"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "14px 20px",
-                borderRadius: "14px",
-                background: "#ffffff",
-                color: "#111827",
-                fontWeight: 800,
-                boxShadow: "0 10px 25px rgba(0,0,0,0.12)",
-              }}
+              className={styles.heroStatLink}
+              style={{ textDecoration: "none", color: "inherit" }}
             >
-              해커톤 탐색하기
+              <div
+                style={{
+                  borderRadius: "18px",
+                  padding: "18px",
+                  background: "rgba(255,255,255,0.1)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ fontSize: "13px", opacity: 0.85 }}>전체 해커톤</div>
+                <div style={{ fontSize: "28px", fontWeight: 900 }}>
+                  {hackathons.length}
+                </div>
+              </div>
             </Link>
 
             <Link
               href="/camp"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "14px 20px",
-                borderRadius: "14px",
-                border: "1px solid rgba(255,255,255,0.24)",
-                color: "#ffffff",
-                fontWeight: 800,
-                background: "rgba(255,255,255,0.08)",
-              }}
+              className={styles.heroStatLink}
+              style={{ textDecoration: "none", color: "inherit" }}
             >
-              팀 찾기
+              <div
+                style={{
+                  borderRadius: "18px",
+                  padding: "18px",
+                  background: "rgba(255,255,255,0.1)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ fontSize: "13px", opacity: 0.85 }}>모집 중 팀</div>
+                <div style={{ fontSize: "28px", fontWeight: 900 }}>
+                  {teams.filter((team) => team.isOpen).length}
+                </div>
+              </div>
             </Link>
-          </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: "12px",
-              marginTop: "24px",
-            }}
-          >
-            <div
-              style={{
-                borderRadius: "18px",
-                padding: "14px 18px",
-                background: "rgba(255,255,255,0.1)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                backdropFilter: "blur(8px)",
-              }}
+            <Link
+              href="/rankings"
+              className={styles.heroStatLink}
+              style={{ textDecoration: "none", color: "inherit" }}
             >
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>
-                전체 해커톤
+              <div
+                style={{
+                  borderRadius: "18px",
+                  padding: "18px",
+                  background: "rgba(255,255,255,0.1)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ fontSize: "13px", opacity: 0.85 }}>리더보드</div>
+                <div style={{ fontSize: "28px", fontWeight: 900 }}>
+                  {allBoards.length}
+                </div>
               </div>
-              <div style={{ fontSize: "24px", fontWeight: 900 }}>{hackathons.length}</div>
-            </div>
-
-            <div
-              style={{
-                borderRadius: "18px",
-                padding: "14px 18px",
-                background: "rgba(255,255,255,0.1)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>
-                모집 중인 팀
-              </div>
-              <div style={{ fontSize: "24px", fontWeight: 900 }}>
-                {teams.filter((team) => team.isOpen).length}
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderRadius: "18px",
-                padding: "14px 18px",
-                background: "rgba(255,255,255,0.1)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>
-                리더보드
-              </div>
-              <div style={{ fontSize: "24px", fontWeight: 900 }}>{allBoards.length}</div>
-            </div>
+            </Link>
           </div>
         </div>
       </section>
 
-
+      {/* CONTENT */}
       <section
         style={{
           display: "grid",
@@ -299,35 +249,27 @@ export default function HomePage() {
           gap: "20px",
         }}
       >
+        {/* 최근 해커톤 */}
         <div
+          className={styles.sectionPanel}
           style={{
             background: "#ffffff",
             border: "1px solid #e5e7eb",
             borderRadius: "28px",
             padding: "28px",
-            boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
           }}
         >
-          <div style={{ marginBottom: "18px" }}>
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 800,
-                color: "#2563eb",
-                letterSpacing: "0.04em",
-                marginBottom: "8px",
-              }}
-            >
-              RECENT HACKATHONS
-            </div>
-            <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 900 }}>
-              최근 해커톤
-            </h2>
-          </div>
+          <h2 style={{ margin: "0 0 18px", fontSize: "26px", fontWeight: 900 }}>
+            최근 해커톤
+          </h2>
 
           <div style={{ display: "grid", gap: "14px" }}>
             {recentHackathons.map((hackathon) => (
-              <Link key={hackathon.slug} href={`/hackathons/${hackathon.slug}`}>
+              <Link
+                key={hackathon.slug}
+                href={`/hackathons/${hackathon.slug}`}
+                className={styles.contentCardLink}
+              >
                 <article
                   style={{
                     border: "1px solid #edf0f5",
@@ -336,98 +278,53 @@ export default function HomePage() {
                     padding: "20px",
                   }}
                 >
-                  <div style={{ marginBottom: "10px" }}>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "7px 11px",
-                        borderRadius: "999px",
-                        fontSize: "12px",
-                        fontWeight: 800,
-                        ...getStatusStyle(hackathon.status),
-                      }}
-                    >
-                      {getStatusLabel(hackathon.status)}
-                    </span>
-                  </div>
-
-                  <h3
+                  <span
                     style={{
-                      margin: "0 0 12px",
-                      fontSize: "22px",
-                      lineHeight: 1.35,
-                      fontWeight: 900,
+                      padding: "6px 10px",
+                      borderRadius: "999px",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                      ...getStatusStyle(hackathon.status),
                     }}
                   >
+                    {getStatusLabel(hackathon.status)}
+                  </span>
+
+                  <h3 style={{ margin: "12px 0", fontSize: "20px", fontWeight: 900 }}>
                     {hackathon.title}
                   </h3>
 
-                  <p style={{ margin: "0 0 8px", color: "#6b7280" }}>
+                  <p style={{ margin: 0, color: "#6b7280" }}>
                     제출 마감 · {formatDate(hackathon.period.submissionDeadlineAt)}
                   </p>
-                  <p style={{ margin: 0, color: "#6b7280" }}>
-                    종료일 · {formatDate(hackathon.period.endAt)}
-                  </p>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "8px",
-                      marginTop: "14px",
-                    }}
-                  >
-                    {hackathon.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        style={{
-                          display: "inline-block",
-                          padding: "7px 11px",
-                          borderRadius: "999px",
-                          background: "#eef4ff",
-                          color: "#2457c5",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                        }}
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
                 </article>
               </Link>
             ))}
           </div>
         </div>
 
+        {/* 팀 + 랭킹 */}
         <div style={{ display: "grid", gap: "20px" }}>
           <div
+            className={styles.sectionPanel}
             style={{
               background: "#ffffff",
               border: "1px solid #e5e7eb",
               borderRadius: "28px",
               padding: "24px",
-              boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
             }}
           >
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 800,
-                color: "#2563eb",
-                letterSpacing: "0.04em",
-                marginBottom: "8px",
-              }}
-            >
-              OPEN TEAMS
-            </div>
-            <h2 style={{ margin: "0 0 18px", fontSize: "28px", fontWeight: 900 }}>
+            <h2 style={{ margin: "0 0 18px", fontSize: "26px", fontWeight: 900 }}>
               모집 중인 팀
             </h2>
 
             <div style={{ display: "grid", gap: "12px" }}>
               {openTeams.map((team) => (
-                <Link key={team.teamCode} href={`/camp?hackathon=${team.hackathonSlug}`}>
+                <Link
+                  key={team.teamCode}
+                  href={`/camp?hackathon=${team.hackathonSlug}`}
+                  className={styles.contentCardLink}
+                >
                   <article
                     style={{
                       borderRadius: "18px",
@@ -436,40 +333,11 @@ export default function HomePage() {
                       border: "1px solid #edf0f5",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "10px",
-                        marginBottom: "8px",
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 900 }}>
-                        {team.name}
-                      </h3>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "6px 10px",
-                          borderRadius: "999px",
-                          background: "#e8f7ea",
-                          color: "#1f7a35",
-                          fontSize: "12px",
-                          fontWeight: 800,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        모집 중
-                      </span>
-                    </div>
-
-                    <p style={{ margin: "0 0 8px", color: "#6b7280", fontSize: "14px" }}>
+                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 900 }}>
+                      {team.name}
+                    </h3>
+                    <p style={{ margin: "6px 0 0", color: "#6b7280" }}>
                       {getHackathonTitle(team.hackathonSlug)}
-                    </p>
-
-                    <p style={{ margin: 0, color: "#374151", lineHeight: 1.6 }}>
-                      {team.intro}
                     </p>
                   </article>
                 </Link>
@@ -478,32 +346,25 @@ export default function HomePage() {
           </div>
 
           <div
+            className={styles.sectionPanel}
             style={{
               background: "#ffffff",
               border: "1px solid #e5e7eb",
               borderRadius: "28px",
               padding: "24px",
-              boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
             }}
           >
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 800,
-                color: "#2563eb",
-                letterSpacing: "0.04em",
-                marginBottom: "8px",
-              }}
-            >
-              TOP RANKING
-            </div>
-            <h2 style={{ margin: "0 0 18px", fontSize: "28px", fontWeight: 900 }}>
+            <h2 style={{ margin: "0 0 18px", fontSize: "26px", fontWeight: 900 }}>
               상위 팀 미리보기
             </h2>
 
             <div style={{ display: "grid", gap: "12px" }}>
               {topTeams.map((item) => (
-                <Link key={item.hackathonSlug} href="/rankings">
+                <Link
+                  key={item.hackathonSlug}
+                  href="/rankings"
+                  className={styles.contentCardLink}
+                >
                   <article
                     style={{
                       borderRadius: "18px",
@@ -512,10 +373,10 @@ export default function HomePage() {
                       border: "1px solid #edf0f5",
                     }}
                   >
-                    <p style={{ margin: "0 0 8px", color: "#2563eb", fontWeight: 800 }}>
+                    <p style={{ margin: "0 0 6px", color: "#2563eb", fontWeight: 800 }}>
                       {getHackathonTitle(item.hackathonSlug)}
                     </p>
-                    <h3 style={{ margin: "0 0 8px", fontSize: "20px", fontWeight: 900 }}>
+                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 900 }}>
                       1위 {item.entry.teamName}
                     </h3>
                     <p style={{ margin: 0, color: "#6b7280" }}>
