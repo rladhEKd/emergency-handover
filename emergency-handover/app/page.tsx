@@ -3,6 +3,7 @@ import Link from "next/link";
 import hackathonsData from "../data/public_hackathons.json";
 import teamsData from "../data/public_teams.json";
 import leaderboardData from "../data/public_leaderboard.json";
+import HomeStatsCards from "./HomeStatsCards";
 
 type Hackathon = {
   slug: string;
@@ -167,77 +168,11 @@ export default function HomePage() {
           </p>
 
           {/* STAT CARDS */}
-          <div
-            style={{
-              marginTop: "26px",
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: "14px",
-            }}
-          >
-            <Link
-              href="/hackathons"
-              className={styles.heroStatLink}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <div
-                style={{
-                  borderRadius: "18px",
-                  padding: "18px",
-                  background: "rgba(255,255,255,0.1)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ fontSize: "13px", opacity: 0.85 }}>전체 해커톤</div>
-                <div style={{ fontSize: "28px", fontWeight: 900 }}>
-                  {hackathons.length}
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/camp"
-              className={styles.heroStatLink}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <div
-                style={{
-                  borderRadius: "18px",
-                  padding: "18px",
-                  background: "rgba(255,255,255,0.1)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ fontSize: "13px", opacity: 0.85 }}>모집 중 팀</div>
-                <div style={{ fontSize: "28px", fontWeight: 900 }}>
-                  {teams.filter((team) => team.isOpen).length}
-                </div>
-              </div>
-            </Link>
-
-            <Link
-              href="/rankings"
-              className={styles.heroStatLink}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <div
-                style={{
-                  borderRadius: "18px",
-                  padding: "18px",
-                  background: "rgba(255,255,255,0.1)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ fontSize: "13px", opacity: 0.85 }}>리더보드</div>
-                <div style={{ fontSize: "28px", fontWeight: 900 }}>
-                  {allBoards.length}
-                </div>
-              </div>
-            </Link>
-          </div>
+          <HomeStatsCards
+            publicHackathonCount={hackathons.length}
+            publicOpenTeamCount={teams.filter((team) => team.isOpen).length}
+            publicRankingCount={allBoards.length}
+          />
         </div>
       </section>
 
