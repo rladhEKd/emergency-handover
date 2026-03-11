@@ -51,6 +51,22 @@ type LeaderboardData = Leaderboard & {
   extraLeaderboards?: Leaderboard[];
 };
 
+type SubmissionItem = {
+  key: string;
+  title: string;
+  format: string;
+};
+
+type SubmissionRecord = {
+  id: string;
+  hackathonSlug: string;
+  submittedAt: string;
+  notes: string;
+  values: Record<string, string>;
+};
+
+const SUBMISSION_STORAGE_PREFIX = "hackathon-submissions-v1";
+
 function getStatusText(status: Hackathon["status"]) {
   switch (status) {
     case "ongoing":
@@ -97,6 +113,31 @@ function safeScore(score: number) {
   if (score >= 1 && Number.isInteger(score)) return score.toString();
   if (score >= 1) return score.toFixed(1);
   return score.toFixed(4);
+}
+
+function getSubmissionStorageKey(slug: string) {
+  return `${SUBMISSION_STORAGE_PREFIX}:${slug}`;
+}
+
+function makeInitialSubmissionValues(items: SubmissionItem[]) {
+  return items.reduce<Record<string, string>>((acc, item) => {
+    acc[item.key] = "";
+    return acc;
+  }, {});
+}
+
+function isUrlFormat(format: string) {
+  return format === "url" || format === "pdf_url";
+}
+
+function isValidUrl(value: string) {
+  return value.startsWith("http://") || value.startsWith("https://");
+}
+
+function getInputPlaceholder(format: string) {
+  if (isUrlFormat(format)) return "https://example.com";
+  if (format === "text_or_url") return "Enter text or paste a URL";
+  return "Enter text";
 }
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode; }) {
@@ -191,6 +232,92 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   const allowSolo = details?.sections.overview?.teamPolicy?.allowSolo;
   const quickLinks = details?.sections.info?.links;
   const notices = details?.sections.info?.notice ?? [];
+  const submissionItems = useMemo(
+    () => (details?.sections.submit?.submissionItems ?? []) as SubmissionItem[],
+    [details]
+  );
+  const [submissionValues, setSubmissionValues] = useState<Record<string, string>>({});
+  const [submissionNotes, setSubmissionNotes] = useState("");
+  const [submissionHistory, setSubmissionHistory] = useState<SubmissionRecord[]>([]);
+  const [submitError, setSubmitError] = useState("");
+  const [submitSuccess, setSubmitSuccess] = useState("");
+
+  useEffect(() => {
+    const initialValues = makeInitialSubmissionValues(submissionItems);
+    setSubmissionValues(initialValues);
+    setSubmissionNotes("");
+    setSubmitError("");
+    setSubmitSuccess("");
+
+    try {
+      const stored = window.localStorage.getItem(getSubmissionStorageKey(hackathon.slug));
+      if (!stored) {
+        setSubmissionHistory([]);
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as SubmissionRecord[];
+      setSubmissionHistory(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSubmissionHistory([]);
+    }
+  }, [hackathon.slug, submissionItems]);
+
+  function handleSubmissionValueChange(key: string, value: string) {
+    setSubmissionValues((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (submissionItems.length === 0) {
+      setSubmitError("No submission items are configured for this hackathon.");
+      setSubmitSuccess("");
+      return;
+    }
+
+    for (const item of submissionItems) {
+      const rawValue = submissionValues[item.key] ?? "";
+      const value = rawValue.trim();
+
+      if (!value) {
+        setSubmitError(`Please fill in ${item.title}.`);
+        setSubmitSuccess("");
+        return;
+      }
+
+      if (isUrlFormat(item.format) && !isValidUrl(value)) {
+        setSubmitError(`Please enter a valid URL for ${item.title}.`);
+        setSubmitSuccess("");
+        return;
+      }
+    }
+
+    const record: SubmissionRecord = {
+      id: `${hackathon.slug}-${Date.now()}`,
+      hackathonSlug: hackathon.slug,
+      submittedAt: new Date().toISOString(),
+      notes: submissionNotes.trim(),
+      values: submissionItems.reduce<Record<string, string>>((acc, item) => {
+        acc[item.key] = (submissionValues[item.key] ?? "").trim();
+        return acc;
+      }, {}),
+    };
+
+    const updatedHistory = [record, ...submissionHistory];
+    window.localStorage.setItem(
+      getSubmissionStorageKey(hackathon.slug),
+      JSON.stringify(updatedHistory)
+    );
+    setSubmissionHistory(updatedHistory);
+    setSubmissionValues(makeInitialSubmissionValues(submissionItems));
+    setSubmissionNotes("");
+    setSubmitError("");
+    setSubmitSuccess("Submission saved locally.");
+  }
 
   return (
     <main style={{ maxWidth: "1180px", margin: "0 auto", padding: "24px 20px 72px" }}>
@@ -384,7 +511,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                       <span style={{ color: "#6b7280", fontSize: "14px" }}>No role tags</span>
                     )}
                   </div>
-                  <div style={{ color: "#6b7280", fontSize: "14px" }}>{team.memberCount} members now · Posted {formatDate(team.createdAt)}</div>
+                  <div style={{ color: "#6b7280", fontSize: "14px" }}>{team.memberCount} members now - Posted {formatDate(team.createdAt)}</div>
                 </article>
               ))}
             </div>
@@ -442,6 +569,265 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               </div>
             </div>
           )}
+
+          {submissionItems.length > 0 ? (
+            <>
+              <form onSubmit={handleSubmit} style={{ marginTop: "18px" }}>
+                <div style={{ display: "grid", gap: "14px" }}>
+                  {submissionItems.map((item) => (
+                    <div key={item.key}>
+                      <label
+                        htmlFor={`submission-${item.key}`}
+                        style={{
+                          display: "block",
+                          marginBottom: "8px",
+                          fontSize: "14px",
+                          fontWeight: 800,
+                          color: "#111827",
+                        }}
+                      >
+                        {item.title}
+                      </label>
+
+                      {isUrlFormat(item.format) ? (
+                        <input
+                          id={`submission-${item.key}`}
+                          type="url"
+                          value={submissionValues[item.key] ?? ""}
+                          onChange={(e) => handleSubmissionValueChange(item.key, e.target.value)}
+                          placeholder={getInputPlaceholder(item.format)}
+                          style={{
+                            width: "100%",
+                            height: "48px",
+                            padding: "0 14px",
+                            borderRadius: "14px",
+                            border: "1px solid #d1d5db",
+                            outline: "none",
+                            fontSize: "15px",
+                            background: "#fbfcfe",
+                          }}
+                        />
+                      ) : (
+                        <textarea
+                          id={`submission-${item.key}`}
+                          value={submissionValues[item.key] ?? ""}
+                          onChange={(e) => handleSubmissionValueChange(item.key, e.target.value)}
+                          placeholder={getInputPlaceholder(item.format)}
+                          rows={item.format === "text_or_url" ? 3 : 4}
+                          style={{
+                            width: "100%",
+                            padding: "12px 14px",
+                            borderRadius: "14px",
+                            border: "1px solid #d1d5db",
+                            outline: "none",
+                            fontSize: "15px",
+                            background: "#fbfcfe",
+                            resize: "vertical",
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+
+                  <div>
+                    <label
+                      htmlFor="submission-notes"
+                      style={{
+                        display: "block",
+                        marginBottom: "8px",
+                        fontSize: "14px",
+                        fontWeight: 800,
+                        color: "#111827",
+                      }}
+                    >
+                      Notes
+                    </label>
+                    <textarea
+                      id="submission-notes"
+                      value={submissionNotes}
+                      onChange={(e) => setSubmissionNotes(e.target.value)}
+                      placeholder="Optional notes"
+                      rows={3}
+                      style={{
+                        width: "100%",
+                        padding: "12px 14px",
+                        borderRadius: "14px",
+                        border: "1px solid #d1d5db",
+                        outline: "none",
+                        fontSize: "15px",
+                        background: "#fbfcfe",
+                        resize: "vertical",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {submitError && (
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      borderRadius: "14px",
+                      padding: "12px 14px",
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      color: "#b91c1c",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {submitError}
+                  </div>
+                )}
+
+                {submitSuccess && (
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      borderRadius: "14px",
+                      padding: "12px 14px",
+                      background: "#ecfdf5",
+                      border: "1px solid #a7f3d0",
+                      color: "#047857",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {submitSuccess}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  style={{
+                    marginTop: "16px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "12px 16px",
+                    borderRadius: "14px",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Save submission
+                </button>
+              </form>
+
+              <div style={{ marginTop: "22px" }}>
+                <h3 style={{ margin: "0 0 12px", fontSize: "20px", fontWeight: 900 }}>
+                  Submission history
+                </h3>
+
+                {submissionHistory.length > 0 ? (
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {submissionHistory.map((record) => (
+                      <div
+                        key={record.id}
+                        style={{
+                          borderRadius: "18px",
+                          background: "#ffffff",
+                          border: "1px solid #e5e7eb",
+                          padding: "16px 18px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                            flexWrap: "wrap",
+                            marginBottom: "10px",
+                          }}
+                        >
+                          <div style={{ fontWeight: 800, color: "#111827" }}>Saved submission</div>
+                          <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                            {formatDate(record.submittedAt)}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "grid", gap: "10px" }}>
+                          {submissionItems.map((item) => {
+                            const value = record.values[item.key];
+                            if (!value) return null;
+
+                            return (
+                              <div key={`${record.id}-${item.key}`}>
+                                <div
+                                  style={{
+                                    fontSize: "13px",
+                                    color: "#6b7280",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  {item.title}
+                                </div>
+
+                                {isUrlFormat(item.format) ? (
+                                  <a
+                                    href={value}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ color: "#2563eb", fontWeight: 700 }}
+                                  >
+                                    {value}
+                                  </a>
+                                ) : (
+                                  <div style={{ color: "#111827", lineHeight: 1.7 }}>{value}</div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {record.notes && (
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: "13px",
+                                  color: "#6b7280",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                Notes
+                              </div>
+                              <div style={{ color: "#111827", lineHeight: 1.7 }}>
+                                {record.notes}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      borderRadius: "18px",
+                      background: "#f8fafc",
+                      border: "1px solid #e5e7eb",
+                      padding: "18px",
+                      color: "#6b7280",
+                    }}
+                  >
+                    No submissions saved yet.
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div
+              style={{
+                marginTop: "18px",
+                borderRadius: "18px",
+                background: "#f8fafc",
+                border: "1px solid #e5e7eb",
+                padding: "18px",
+                color: "#6b7280",
+              }}
+            >
+              No submission items are configured for this hackathon.
+            </div>
+          )}
         </SectionCard>
       )}
       {activeTab === "leaderboard" && (
@@ -465,7 +851,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>Submitted {formatDate(entry.submittedAt)}</div>
                     {entry.scoreBreakdown && (
                       <div style={{ color: "#374151", fontSize: "14px", lineHeight: 1.7 }}>
-                        Participant {entry.scoreBreakdown.participant ?? "-"} · Judge {entry.scoreBreakdown.judge ?? "-"}
+                        Participant {entry.scoreBreakdown.participant ?? "-"} - Judge {entry.scoreBreakdown.judge ?? "-"}
                       </div>
                     )}
                   </div>
