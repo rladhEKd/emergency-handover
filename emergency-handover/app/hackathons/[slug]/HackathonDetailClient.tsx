@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import leaderboardData from "../../../data/public_leaderboard.json";
 import initialTeams from "../../../data/public_teams.json";
-import { AUTH_CHANGED_EVENT, getCurrentSession } from "../../../lib/local-auth";
+import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../../../lib/local-auth";
 import type { DetailHackathon, Hackathon } from "./page";
 
 type TabKey =
@@ -66,7 +67,24 @@ type SubmissionRecord = {
   values: Record<string, string>;
 };
 
+type TeamJoinStatus = "pending" | "accepted" | "rejected";
+
+type TeamJoinRequest = {
+  teamCode: string;
+  requesterId: string;
+  requesterName: string;
+  status: TeamJoinStatus;
+  createdAt: string;
+  respondedAt?: string;
+};
+
+type PendingTeamAction =
+  | { type: "navigate"; url: string }
+  | { type: "request"; teamCode: string }
+  | { type: "review"; teamCode: string; requesterId: string; nextStatus: Exclude<TeamJoinStatus, "pending"> };
+
 const SUBMISSION_STORAGE_PREFIX = "hackathon-submissions-v1";
+const TEAM_JOIN_REQUESTS_PREFIX = "team-join-requests-v1";
 
 function getStatusText(status: Hackathon["status"]) {
   switch (status) {
@@ -118,6 +136,10 @@ function safeScore(score: number) {
 
 function getSubmissionStorageKey(slug: string, userId: string) {
   return `${SUBMISSION_STORAGE_PREFIX}:${slug}:${userId}`;
+}
+
+function getTeamJoinRequestsStorageKey(slug: string) {
+  return `${TEAM_JOIN_REQUESTS_PREFIX}:${slug}`;
 }
 
 function makeInitialSubmissionValues(items: SubmissionItem[]) {
@@ -192,6 +214,7 @@ function StatCard({ label, value, tone = "default" }: { label: string; value: Re
 }
 
 export default function HackathonDetailClient({ hackathon, details }: { hackathon: Hackathon; details?: DetailHackathon; }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [teams, setTeams] = useState<Team[]>(initialTeams as Team[]);
   const statusStyle = getStatusStyle(hackathon.status);
@@ -218,6 +241,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     }
 
     syncAuthState();
+    setTeamOwners(getTeamOwners());
     window.addEventListener(AUTH_CHANGED_EVENT, syncAuthState);
     window.addEventListener("storage", syncAuthState);
 
@@ -260,6 +284,25 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentNickname, setCurrentNickname] = useState("");
+  const [teamActionModalOpen, setTeamActionModalOpen] = useState(false);
+  const [pendingTeamAction, setPendingTeamAction] = useState<PendingTeamAction | null>(null);
+  const [teamOwners, setTeamOwners] = useState<Record<string, string>>({});
+  const [teamJoinRequests, setTeamJoinRequests] = useState<TeamJoinRequest[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(getTeamJoinRequestsStorageKey(hackathon.slug));
+      if (!stored) {
+        setTeamJoinRequests([]);
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as TeamJoinRequest[];
+      setTeamJoinRequests(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setTeamJoinRequests([]);
+    }
+  }, [hackathon.slug]);
 
   useEffect(() => {
     const initialValues = makeInitialSubmissionValues(submissionItems);
@@ -292,6 +335,72 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       ...current,
       [key]: value,
     }));
+  }
+
+  function persistTeamJoinRequests(nextRequests: TeamJoinRequest[]) {
+    setTeamJoinRequests(nextRequests);
+    window.localStorage.setItem(
+      getTeamJoinRequestsStorageKey(hackathon.slug),
+      JSON.stringify(nextRequests)
+    );
+  }
+
+  function handleTeamActionStart(action: PendingTeamAction) {
+    setPendingTeamAction(action);
+    setTeamActionModalOpen(true);
+  }
+
+  function handleTeamActionCancel() {
+    setTeamActionModalOpen(false);
+    setPendingTeamAction(null);
+  }
+
+  function handleTeamActionConfirm() {
+    if (!pendingTeamAction) {
+      setTeamActionModalOpen(false);
+      return;
+    }
+
+    if (pendingTeamAction.type === "navigate") {
+      router.push(pendingTeamAction.url);
+    }
+
+    if (pendingTeamAction.type === "request") {
+      if (currentUserId) {
+        const existing = teamJoinRequests.find(
+          (request) => request.teamCode === pendingTeamAction.teamCode && request.requesterId === currentUserId
+        );
+
+        if (!existing) {
+          persistTeamJoinRequests([
+            {
+              teamCode: pendingTeamAction.teamCode,
+              requesterId: currentUserId,
+              requesterName: currentNickname || "Member",
+              status: "pending",
+              createdAt: new Date().toISOString(),
+            },
+            ...teamJoinRequests,
+          ]);
+        }
+      }
+    }
+
+    if (pendingTeamAction.type === "review") {
+      const nextRequests = teamJoinRequests.map((request) =>
+        request.teamCode === pendingTeamAction.teamCode && request.requesterId === pendingTeamAction.requesterId
+          ? {
+              ...request,
+              status: pendingTeamAction.nextStatus,
+              respondedAt: new Date().toISOString(),
+            }
+          : request
+      );
+      persistTeamJoinRequests(nextRequests);
+    }
+
+    setTeamActionModalOpen(false);
+    setPendingTeamAction(null);
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -350,6 +459,25 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   }
 
   const authRedirectUrl = `/auth?mode=login&redirect=/hackathons/${hackathon.slug}`;
+
+  function getMyJoinRequest(teamCode: string) {
+    if (!currentUserId) return null;
+    return (
+      teamJoinRequests.find(
+        (request) => request.teamCode === teamCode && request.requesterId === currentUserId
+      ) ?? null
+    );
+  }
+
+  function getTeamRequestsForOwner(teamCode: string) {
+    return teamJoinRequests
+      .filter((request) => request.teamCode === teamCode)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  function isTeamOwner(teamCode: string) {
+    return !!currentUserId && teamOwners[teamCode] === currentUserId;
+  }
 
   return (
     <main style={{ maxWidth: "1180px", margin: "0 auto", padding: "24px 20px 72px" }}>
@@ -527,7 +655,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
           {openTeams.length > 0 ? (
             <div style={{ display: "grid", gap: "12px", marginBottom: "18px" }}>
-              {openTeams.slice(0, 3).map((team) => (
+              {openTeams.slice(0, 3).map((team) => {
+                const isOwner = isTeamOwner(team.teamCode);
+                const myJoinRequest = getMyJoinRequest(team.teamCode);
+                const ownerRequests = getTeamRequestsForOwner(team.teamCode);
+
+                return (
                 <article key={team.teamCode} style={{ borderRadius: "18px", background: "#ffffff", border: "1px solid #e5e7eb", padding: "18px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "10px" }}>
                     <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 900 }}>{team.name}</h3>
@@ -543,9 +676,101 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                       <span style={{ color: "#6b7280", fontSize: "14px" }}>No role tags</span>
                     )}
                   </div>
-                  <div style={{ color: "#6b7280", fontSize: "14px" }}>{team.memberCount} members now - Posted {formatDate(team.createdAt)}</div>
+                  <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "12px" }}>{team.memberCount} members now - Posted {formatDate(team.createdAt)}</div>
+
+                  {isOwner ? (
+                    <div style={{ display: "grid", gap: "10px" }}>
+                      <div style={{ fontWeight: 800, color: "#111827" }}>Join requests</div>
+                      {ownerRequests.length > 0 ? (
+                        ownerRequests.map((request) => (
+                          <div key={`${request.teamCode}-${request.requesterId}`} style={{ borderRadius: "14px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: request.status === "pending" ? "10px" : 0 }}>
+                              <div>
+                                <div style={{ fontWeight: 800, color: "#111827" }}>{request.requesterName}</div>
+                                <div style={{ color: "#6b7280", fontSize: "13px" }}>Requested {formatDate(request.createdAt)}</div>
+                              </div>
+                              <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: request.status === "accepted" ? "#e8f7ea" : request.status === "rejected" ? "#f3f4f6" : "#eef4ff", color: request.status === "accepted" ? "#1e7a35" : request.status === "rejected" ? "#4b5563" : "#2457c5", fontWeight: 800, fontSize: "12px" }}>
+                                {request.status === "pending" ? "Pending" : request.status === "accepted" ? "Accepted" : "Rejected"}
+                              </span>
+                            </div>
+                            {request.status === "pending" ? (
+                              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTeamActionStart({ type: "review", teamCode: team.teamCode, requesterId: request.requesterId, nextStatus: "accepted" })}
+                                  style={{
+                                    padding: "10px 14px",
+                                    borderRadius: "10px",
+                                    border: "none",
+                                    background: "#2563eb",
+                                    color: "#ffffff",
+                                    fontWeight: 800,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTeamActionStart({ type: "review", teamCode: team.teamCode, requesterId: request.requesterId, nextStatus: "rejected" })}
+                                  style={{
+                                    padding: "10px 14px",
+                                    borderRadius: "10px",
+                                    border: "1px solid #d1d5db",
+                                    background: "#ffffff",
+                                    color: "#374151",
+                                    fontWeight: 800,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ borderRadius: "14px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px", color: "#6b7280" }}>
+                          No join requests yet.
+                        </div>
+                      )}
+                    </div>
+                  ) : myJoinRequest?.status === "accepted" ? (
+                    <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#e8f7ea", color: "#1e7a35", fontWeight: 800, fontSize: "13px" }}>
+                      Joined
+                    </span>
+                  ) : myJoinRequest?.status === "rejected" ? (
+                    <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#f3f4f6", color: "#4b5563", fontWeight: 800, fontSize: "13px" }}>
+                      Rejected
+                    </span>
+                  ) : myJoinRequest?.status === "pending" ? (
+                    <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "13px" }}>
+                      Pending
+                    </span>
+                  ) : currentUserId ? (
+                    <button
+                      type="button"
+                      onClick={() => handleTeamActionStart({ type: "request", teamCode: team.teamCode })}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        border: "none",
+                        background: "#2563eb",
+                        color: "#ffffff",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Request to join
+                    </button>
+                  ) : (
+                    <Link href={authRedirectUrl} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 14px", borderRadius: "10px", background: "#2563eb", color: "#ffffff", fontWeight: 800, textDecoration: "none" }}>
+                      Login to join
+                    </Link>
+                  )}
                 </article>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "18px", marginBottom: "18px", color: "#6b7280" }}>
@@ -554,9 +779,24 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           )}
 
           {details?.sections.teams?.listUrl ? (
-            <Link href={details.sections.teams.listUrl} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "12px 16px", borderRadius: "14px", background: "#2563eb", color: "#ffffff", fontWeight: 800 }}>
+            <button
+              type="button"
+              onClick={() => handleTeamActionStart({ type: "navigate", url: details.sections.teams!.listUrl! })}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "12px 16px",
+                borderRadius: "14px",
+                background: "#2563eb",
+                color: "#ffffff",
+                fontWeight: 800,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
               Open team board
-            </Link>
+            </button>
           ) : (
             <p style={{ margin: 0, color: "#6b7280" }}>No linked camp board is configured.</p>
           )}
@@ -906,6 +1146,80 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           )}
         </SectionCard>
       )}
+      {teamActionModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            zIndex: 60,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "520px",
+              borderRadius: "24px",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 20px 50px rgba(15, 23, 42, 0.18)",
+              padding: "24px",
+            }}
+          >
+            <h3 style={{ margin: "0 0 12px", fontSize: "24px", fontWeight: 900, color: "#111827" }}>
+              Team setup checklist
+            </h3>
+            <p style={{ margin: "0 0 14px", color: "#374151", lineHeight: 1.8 }}>
+              Review the checklist before starting a team invite or join action.
+            </p>
+            <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "18px" }}>
+              <div style={{ fontWeight: 800, color: "#111827", marginBottom: "10px" }}>Team setup notes</div>
+              <ul style={{ margin: 0, paddingLeft: "20px", color: "#374151", lineHeight: 1.9 }}>
+                <li>Check the maximum team size before inviting members.</li>
+                <li>Confirm who is responsible for the final submission.</li>
+                <li>Review team status before the deadline.</li>
+              </ul>
+            </div>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end", marginTop: "18px" }}>
+              <button
+                type="button"
+                onClick={handleTeamActionCancel}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: "14px",
+                  border: "1px solid #d1d5db",
+                  background: "#ffffff",
+                  color: "#374151",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleTeamActionConfirm}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: "14px",
+                  border: "none",
+                  background: "#2563eb",
+                  color: "#ffffff",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "leaderboard" && (
         <SectionCard title="Leaderboard">
           <p style={{ margin: "0 0 16px", color: "#374151", lineHeight: 1.8 }}>
