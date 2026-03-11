@@ -1,7 +1,14 @@
-﻿"use client";
+"use client";
 
+import Link from "next/link";
 import initialTeams from "../../data/public_teams.json";
 import { useEffect, useMemo, useState } from "react";
+import {
+  AUTH_CHANGED_EVENT,
+  getCurrentSession,
+  getTeamOwners,
+  saveTeamOwners,
+} from "../../lib/local-auth";
 
 type Team = {
   teamCode: string;
@@ -58,10 +65,18 @@ export default function CampPage() {
   const [contactUrl, setContactUrl] = useState("");
   const [isOpen, setIsOpen] = useState(true);
   const [editingTeamCode, setEditingTeamCode] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentNickname, setCurrentNickname] = useState("");
+  const [teamOwners, setTeamOwners] = useState<Record<string, string>>({});
 
   function persistTeams(nextTeams: Team[]) {
     setTeams(nextTeams);
     localStorage.setItem("teams", JSON.stringify(nextTeams));
+  }
+
+  function persistOwners(nextOwners: Record<string, string>) {
+    setTeamOwners(nextOwners);
+    saveTeamOwners(nextOwners);
   }
 
   function resetForm() {
@@ -73,6 +88,12 @@ export default function CampPage() {
     setIntro("");
     setContactUrl("");
     setIsOpen(true);
+  }
+
+  function syncAuthState() {
+    const session = getCurrentSession();
+    setCurrentUserId(session?.userId ?? "");
+    setCurrentNickname(session?.nickname ?? "");
   }
 
   useEffect(() => {
@@ -91,12 +112,28 @@ export default function CampPage() {
     }
 
     window.requestAnimationFrame(() => setTeams(mergedTeams));
+    window.requestAnimationFrame(() => setTeamOwners(getTeamOwners()));
+    window.requestAnimationFrame(() => syncAuthState());
 
     const params = new URLSearchParams(window.location.search);
     const hackathonParam = params.get("hackathon");
     if (hackathonParam) {
       window.requestAnimationFrame(() => setHackathonFilter(hackathonParam));
     }
+
+    function syncOwners() {
+      setTeamOwners(getTeamOwners());
+    }
+
+    window.addEventListener(AUTH_CHANGED_EVENT, syncAuthState);
+    window.addEventListener("storage", syncAuthState);
+    window.addEventListener("storage", syncOwners);
+
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, syncAuthState);
+      window.removeEventListener("storage", syncAuthState);
+      window.removeEventListener("storage", syncOwners);
+    };
   }, []);
 
   const filteredTeams = useMemo(() => {
@@ -116,16 +153,31 @@ export default function CampPage() {
     return slugs;
   }, [teams]);
 
+  function isOwner(teamCode: string) {
+    return !!currentUserId && teamOwners[teamCode] === currentUserId;
+  }
+
   function handleCreateTeam(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!currentUserId) {
+      alert("Login is required to create or manage team posts.");
+      return;
+    }
 
     if (!name.trim() || !intro.trim() || !contactUrl.trim()) {
       alert("Team name, intro, and contact URL are required.");
       return;
     }
 
+    if (editingTeamCode && !isOwner(editingTeamCode)) {
+      alert("Only the team owner can edit this post.");
+      return;
+    }
+
+    const nextTeamCode = editingTeamCode || makeTeamCode();
     const nextTeam: Team = {
-      teamCode: editingTeamCode || makeTeamCode(),
+      teamCode: nextTeamCode,
       hackathonSlug,
       name: name.trim(),
       isOpen,
@@ -160,11 +212,20 @@ export default function CampPage() {
 
     const updatedTeams = [nextTeam, ...teams];
     persistTeams(updatedTeams);
+    persistOwners({
+      ...teamOwners,
+      [nextTeamCode]: currentUserId,
+    });
     resetForm();
     alert("Team post created.");
   }
 
   function handleEditTeam(teamCode: string) {
+    if (!isOwner(teamCode)) {
+      alert("Only the team owner can edit this post.");
+      return;
+    }
+
     const team = teams.find((item) => item.teamCode === teamCode);
     if (!team) return;
 
@@ -179,6 +240,11 @@ export default function CampPage() {
   }
 
   function handleToggleTeamOpen(teamCode: string, nextOpen: boolean) {
+    if (!isOwner(teamCode)) {
+      alert("Only the team owner can manage this post.");
+      return;
+    }
+
     const updatedTeams = teams.map((team) =>
       team.teamCode === teamCode
         ? {
@@ -278,9 +344,29 @@ export default function CampPage() {
           marginBottom: "28px",
         }}
       >
-        <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "16px" }}>
-          {editingTeamCode ? "Edit team post" : "Create team post"}
-        </h2>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+          <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
+            {editingTeamCode ? "Edit team post" : "Create team post"}
+          </h2>
+          {currentNickname ? (
+            <div style={{ color: "#374151", fontWeight: 700 }}>Signed in as {currentNickname}</div>
+          ) : null}
+        </div>
+
+        {!currentUserId && (
+          <div
+            style={{
+              borderRadius: "14px",
+              padding: "14px 16px",
+              background: "#f8fafc",
+              border: "1px solid #e5e7eb",
+              color: "#4b5563",
+              marginBottom: "18px",
+            }}
+          >
+            Login is required to create or manage team posts. <Link href="/auth?mode=login&redirect=/camp" style={{ color: "#2563eb", fontWeight: 800 }}>Open auth</Link>
+          </div>
+        )}
 
         <form onSubmit={handleCreateTeam}>
           <div
@@ -298,11 +384,13 @@ export default function CampPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="vibe-builders"
+                disabled={!currentUserId}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
                   borderRadius: "10px",
                   border: "1px solid #ccc",
+                  backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
                 }}
               />
             </div>
@@ -314,11 +402,13 @@ export default function CampPage() {
               <select
                 value={hackathonSlug}
                 onChange={(e) => setHackathonSlug(e.target.value)}
+                disabled={!currentUserId}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
                   borderRadius: "10px",
                   border: "1px solid #ccc",
+                  backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
                 }}
               >
                 <option value="aimers-8-model-lite">Aimers 8</option>
@@ -337,11 +427,13 @@ export default function CampPage() {
                 max={10}
                 value={memberCount}
                 onChange={(e) => setMemberCount(Number(e.target.value))}
+                disabled={!currentUserId}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
                   borderRadius: "10px",
                   border: "1px solid #ccc",
+                  backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
                 }}
               />
             </div>
@@ -353,11 +445,13 @@ export default function CampPage() {
               <select
                 value={isOpen ? "open" : "closed"}
                 onChange={(e) => setIsOpen(e.target.value === "open")}
+                disabled={!currentUserId}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
                   borderRadius: "10px",
                   border: "1px solid #ccc",
+                  backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
                 }}
               >
                 <option value="open">Open</option>
@@ -374,11 +468,13 @@ export default function CampPage() {
               value={lookingFor}
               onChange={(e) => setLookingFor(e.target.value)}
               placeholder="Frontend, Designer"
+              disabled={!currentUserId}
               style={{
                 width: "100%",
                 padding: "10px 12px",
                 borderRadius: "10px",
                 border: "1px solid #ccc",
+                backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
               }}
             />
             <p style={{ marginTop: "6px", color: "#666", fontSize: "14px" }}>
@@ -395,12 +491,14 @@ export default function CampPage() {
               onChange={(e) => setIntro(e.target.value)}
               placeholder="Describe your team and recruiting needs"
               rows={4}
+              disabled={!currentUserId}
               style={{
                 width: "100%",
                 padding: "10px 12px",
                 borderRadius: "10px",
                 border: "1px solid #ccc",
                 resize: "vertical",
+                backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
               }}
             />
           </div>
@@ -413,11 +511,13 @@ export default function CampPage() {
               value={contactUrl}
               onChange={(e) => setContactUrl(e.target.value)}
               placeholder="https://open.kakao.com/..."
+              disabled={!currentUserId}
               style={{
                 width: "100%",
                 padding: "10px 12px",
                 borderRadius: "10px",
                 border: "1px solid #ccc",
+                backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
               }}
             />
           </div>
@@ -425,14 +525,15 @@ export default function CampPage() {
           <div style={{ marginTop: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
             <button
               type="submit"
+              disabled={!currentUserId}
               style={{
                 padding: "12px 18px",
                 borderRadius: "10px",
                 border: "none",
-                backgroundColor: "#2563eb",
+                backgroundColor: currentUserId ? "#2563eb" : "#9ca3af",
                 color: "#fff",
                 fontWeight: "bold",
-                cursor: "pointer",
+                cursor: currentUserId ? "pointer" : "not-allowed",
               }}
             >
               {editingTeamCode ? "Save changes" : "Create team post"}
@@ -483,127 +584,136 @@ export default function CampPage() {
 
         <div style={{ display: "grid", gap: "16px" }}>
           {filteredTeams.length > 0 ? (
-            filteredTeams.map((team) => (
-              <article
-                key={team.teamCode}
-                style={{
-                  border: "1px solid #e5e5e5",
-                  borderRadius: "14px",
-                  padding: "20px",
-                  backgroundColor: "#fafafa",
-                }}
-              >
-                <div
+            filteredTeams.map((team) => {
+              const canManage = isOwner(team.teamCode);
+
+              return (
+                <article
+                  key={team.teamCode}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "16px",
-                    flexWrap: "wrap",
-                    marginBottom: "10px",
+                    border: "1px solid #e5e5e5",
+                    borderRadius: "14px",
+                    padding: "20px",
+                    backgroundColor: "#fafafa",
                   }}
                 >
-                  <div>
-                    <h3 style={{ fontSize: "22px", fontWeight: "bold", marginBottom: "8px" }}>
-                      {team.name}
-                    </h3>
-                    <p style={{ color: "#555", marginBottom: "6px" }}>
-                      {getHackathonTitle(team.hackathonSlug)}
-                    </p>
-                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "16px",
+                      flexWrap: "wrap",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    <div>
+                      <h3 style={{ fontSize: "22px", fontWeight: "bold", marginBottom: "8px" }}>
+                        {team.name}
+                      </h3>
+                      <p style={{ color: "#555", marginBottom: "6px" }}>
+                        {getHackathonTitle(team.hackathonSlug)}
+                      </p>
+                      {canManage ? (
+                        <p style={{ color: "#2563eb", fontWeight: 700, margin: 0 }}>Your post</p>
+                      ) : null}
+                    </div>
 
-                  <div>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "6px 10px",
-                        borderRadius: "999px",
-                        backgroundColor: team.isOpen ? "#e8f7ea" : "#eee",
-                        color: team.isOpen ? "#1e7a35" : "#666",
-                        fontWeight: "bold",
-                        fontSize: "14px",
-                      }}
-                    >
-                      {team.isOpen ? "Open" : "Closed"}
-                    </span>
-                  </div>
-                </div>
-
-                <p style={{ marginBottom: "8px" }}>
-                  <strong>Members:</strong> {team.memberCount}
-                </p>
-
-                <p style={{ marginBottom: "10px", lineHeight: 1.7 }}>
-                  <strong>Intro:</strong> {team.intro}
-                </p>
-
-                <div style={{ marginBottom: "10px" }}>
-                  <strong>Looking for</strong>{" "}
-                  {team.lookingFor.length > 0 ? (
-                    team.lookingFor.map((role) => (
+                    <div>
                       <span
-                        key={role}
                         style={{
                           display: "inline-block",
-                          marginRight: "8px",
-                          marginTop: "6px",
                           padding: "6px 10px",
                           borderRadius: "999px",
-                          backgroundColor: "#eef4ff",
-                          color: "#2457c5",
+                          backgroundColor: team.isOpen ? "#e8f7ea" : "#eee",
+                          color: team.isOpen ? "#1e7a35" : "#666",
+                          fontWeight: "bold",
                           fontSize: "14px",
                         }}
                       >
-                        {role}
+                        {team.isOpen ? "Open" : "Closed"}
                       </span>
-                    ))
-                  ) : (
-                    <span>None</span>
-                  )}
-                </div>
+                    </div>
+                  </div>
 
-                <p style={{ marginBottom: "10px" }}>
-                  <strong>Created:</strong> {formatDate(team.createdAt)}
-                </p>
+                  <p style={{ marginBottom: "8px" }}>
+                    <strong>Members:</strong> {team.memberCount}
+                  </p>
 
-                <a href={team.contact.url} target="_blank" rel="noreferrer">
-                  Open contact
-                </a>
+                  <p style={{ marginBottom: "10px", lineHeight: 1.7 }}>
+                    <strong>Intro:</strong> {team.intro}
+                  </p>
 
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-                  <button
-                    type="button"
-                    onClick={() => handleEditTeam(team.teamCode)}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: "10px",
-                      border: "1px solid #d1d5db",
-                      backgroundColor: "#fff",
-                      color: "#374151",
-                      fontWeight: "bold",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Edit
-                  </button>
+                  <div style={{ marginBottom: "10px" }}>
+                    <strong>Looking for</strong>{" "}
+                    {team.lookingFor.length > 0 ? (
+                      team.lookingFor.map((role) => (
+                        <span
+                          key={role}
+                          style={{
+                            display: "inline-block",
+                            marginRight: "8px",
+                            marginTop: "6px",
+                            padding: "6px 10px",
+                            borderRadius: "999px",
+                            backgroundColor: "#eef4ff",
+                            color: "#2457c5",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {role}
+                        </span>
+                      ))
+                    ) : (
+                      <span>None</span>
+                    )}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleToggleTeamOpen(team.teamCode, !team.isOpen)}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: "10px",
-                      border: "none",
-                      backgroundColor: team.isOpen ? "#111827" : "#2563eb",
-                      color: "#fff",
-                      fontWeight: "bold",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {team.isOpen ? "Close recruitment" : "Reopen recruitment"}
-                  </button>
-                </div>
-              </article>
-            ))
+                  <p style={{ marginBottom: "10px" }}>
+                    <strong>Created:</strong> {formatDate(team.createdAt)}
+                  </p>
+
+                  <a href={team.contact.url} target="_blank" rel="noreferrer">
+                    Open contact
+                  </a>
+
+                  {canManage ? (
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleEditTeam(team.teamCode)}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "1px solid #d1d5db",
+                          backgroundColor: "#fff",
+                          color: "#374151",
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTeamOpen(team.teamCode, !team.isOpen)}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "none",
+                          backgroundColor: team.isOpen ? "#111827" : "#2563eb",
+                          color: "#fff",
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {team.isOpen ? "Close recruitment" : "Reopen recruitment"}
+                      </button>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })
           ) : (
             <p>No teams match the current filter.</p>
           )}

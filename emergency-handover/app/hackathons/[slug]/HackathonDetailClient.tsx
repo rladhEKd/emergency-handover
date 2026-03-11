@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import leaderboardData from "../../../data/public_leaderboard.json";
 import initialTeams from "../../../data/public_teams.json";
+import { AUTH_CHANGED_EVENT, getCurrentSession } from "../../../lib/local-auth";
 import type { DetailHackathon, Hackathon } from "./page";
 
 type TabKey =
@@ -115,8 +116,8 @@ function safeScore(score: number) {
   return score.toFixed(4);
 }
 
-function getSubmissionStorageKey(slug: string) {
-  return `${SUBMISSION_STORAGE_PREFIX}:${slug}`;
+function getSubmissionStorageKey(slug: string, userId: string) {
+  return `${SUBMISSION_STORAGE_PREFIX}:${slug}:${userId}`;
 }
 
 function makeInitialSubmissionValues(items: SubmissionItem[]) {
@@ -197,17 +198,33 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
   useEffect(() => {
     const fallbackTeams = initialTeams as Team[];
+
+    function syncAuthState() {
+      const session = getCurrentSession();
+      setCurrentUserId(session?.userId ?? "");
+      setCurrentNickname(session?.nickname ?? "");
+    }
+
     try {
       const savedTeams = window.localStorage.getItem("teams");
       if (!savedTeams) {
         setTeams(fallbackTeams);
-        return;
+      } else {
+        const parsedTeams = JSON.parse(savedTeams) as Team[];
+        setTeams(Array.isArray(parsedTeams) ? parsedTeams : fallbackTeams);
       }
-      const parsedTeams = JSON.parse(savedTeams) as Team[];
-      setTeams(Array.isArray(parsedTeams) ? parsedTeams : fallbackTeams);
     } catch {
       setTeams(fallbackTeams);
     }
+
+    syncAuthState();
+    window.addEventListener(AUTH_CHANGED_EVENT, syncAuthState);
+    window.addEventListener("storage", syncAuthState);
+
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, syncAuthState);
+      window.removeEventListener("storage", syncAuthState);
+    };
   }, []);
 
   const leaderboard = useMemo(() => {
@@ -241,6 +258,8 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   const [submissionHistory, setSubmissionHistory] = useState<SubmissionRecord[]>([]);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentNickname, setCurrentNickname] = useState("");
 
   useEffect(() => {
     const initialValues = makeInitialSubmissionValues(submissionItems);
@@ -249,8 +268,13 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     setSubmitError("");
     setSubmitSuccess("");
 
+    if (!currentUserId) {
+      setSubmissionHistory([]);
+      return;
+    }
+
     try {
-      const stored = window.localStorage.getItem(getSubmissionStorageKey(hackathon.slug));
+      const stored = window.localStorage.getItem(getSubmissionStorageKey(hackathon.slug, currentUserId));
       if (!stored) {
         setSubmissionHistory([]);
         return;
@@ -261,7 +285,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     } catch {
       setSubmissionHistory([]);
     }
-  }, [hackathon.slug, submissionItems]);
+  }, [currentUserId, hackathon.slug, submissionItems]);
 
   function handleSubmissionValueChange(key: string, value: string) {
     setSubmissionValues((current) => ({
@@ -272,6 +296,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!currentUserId) {
+      setSubmitError("Login is required to save a submission.");
+      setSubmitSuccess("");
+      return;
+    }
 
     if (submissionItems.length === 0) {
       setSubmitError("No submission items are configured for this hackathon.");
@@ -309,7 +339,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
     const updatedHistory = [record, ...submissionHistory];
     window.localStorage.setItem(
-      getSubmissionStorageKey(hackathon.slug),
+      getSubmissionStorageKey(hackathon.slug, currentUserId),
       JSON.stringify(updatedHistory)
     );
     setSubmissionHistory(updatedHistory);
@@ -318,6 +348,8 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     setSubmitError("");
     setSubmitSuccess("Submission saved locally.");
   }
+
+  const authRedirectUrl = `/auth?mode=login&redirect=/hackathons/${hackathon.slug}`;
 
   return (
     <main style={{ maxWidth: "1180px", margin: "0 auto", padding: "24px 20px 72px" }}>
@@ -572,6 +604,37 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
           {submissionItems.length > 0 ? (
             <>
+              {!currentUserId ? (
+                <div
+                  style={{
+                    marginTop: "18px",
+                    borderRadius: "18px",
+                    background: "#f8fafc",
+                    border: "1px solid #e5e7eb",
+                    padding: "18px",
+                    color: "#4b5563",
+                  }}
+                >
+                  Login is required to save submissions. {" "}
+                  <Link href={authRedirectUrl} style={{ color: "#2563eb", fontWeight: 800 }}>
+                    Open auth
+                  </Link>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    marginTop: "18px",
+                    borderRadius: "18px",
+                    background: "#f8fafc",
+                    border: "1px solid #e5e7eb",
+                    padding: "18px",
+                    color: "#374151",
+                  }}
+                >
+                  Saving as {currentNickname || "current user"}.
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} style={{ marginTop: "18px" }}>
                 <div style={{ display: "grid", gap: "14px" }}>
                   {submissionItems.map((item) => (
@@ -696,6 +759,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
                 <button
                   type="submit"
+                  disabled={!currentUserId}
                   style={{
                     marginTop: "16px",
                     display: "inline-flex",
@@ -703,11 +767,11 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     justifyContent: "center",
                     padding: "12px 16px",
                     borderRadius: "14px",
-                    background: "#2563eb",
+                    background: currentUserId ? "#2563eb" : "#9ca3af",
                     color: "#ffffff",
                     fontWeight: 800,
                     border: "none",
-                    cursor: "pointer",
+                    cursor: currentUserId ? "pointer" : "not-allowed",
                   }}
                 >
                   Save submission
@@ -719,7 +783,19 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                   Submission history
                 </h3>
 
-                {submissionHistory.length > 0 ? (
+                {!currentUserId ? (
+                  <div
+                    style={{
+                      borderRadius: "18px",
+                      background: "#f8fafc",
+                      border: "1px solid #e5e7eb",
+                      padding: "18px",
+                      color: "#6b7280",
+                    }}
+                  >
+                    Login to view your saved submissions.
+                  </div>
+                ) : submissionHistory.length > 0 ? (
                   <div style={{ display: "grid", gap: "12px" }}>
                     {submissionHistory.map((record) => (
                       <div
