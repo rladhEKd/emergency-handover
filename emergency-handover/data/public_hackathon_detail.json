@@ -77,6 +77,108 @@
   },
   "extraDetails": [
     {
+      "slug": "monthly-vibe-coding-2026-02",
+      "title": "Monthly Vibe Coding 2026.02",
+      "sections": {
+        "overview": {
+          "summary": "A lightweight idea-focused hackathon for building and improving AI workflow concepts with fast prototypes.",
+          "teamPolicy": {
+            "allowSolo": true,
+            "maxTeamSize": 4
+          }
+        },
+        "info": {
+          "notice": [
+            "Idea notes and short demos are both accepted.",
+            "Teams can stay small and focus on problem framing."
+          ],
+          "links": {
+            "rules": "https://example.com/public/rules/vibe202602",
+            "faq": "https://example.com/public/faq/vibe202602"
+          }
+        },
+        "eval": {
+          "metricName": "Idea Score",
+          "description": "Entries are reviewed on clarity, usefulness, and prototype quality.",
+          "scoreDisplay": {
+            "label": "Review score",
+            "breakdown": [
+              {
+                "key": "clarity",
+                "label": "Clarity",
+                "weightPercent": 40
+              },
+              {
+                "key": "impact",
+                "label": "Impact",
+                "weightPercent": 60
+              }
+            ]
+          }
+        },
+        "schedule": {
+          "timezone": "Asia/Seoul",
+          "milestones": [
+            {
+              "name": "Submission opens",
+              "at": "2026-02-20T10:00:00+09:00"
+            },
+            {
+              "name": "Submission deadline",
+              "at": "2026-03-03T10:00:00+09:00"
+            },
+            {
+              "name": "Result announcement",
+              "at": "2026-03-09T10:00:00+09:00"
+            }
+          ]
+        },
+        "prize": {
+          "items": [
+            {
+              "place": "1st",
+              "amountKRW": 1000000
+            },
+            {
+              "place": "2nd",
+              "amountKRW": 500000
+            }
+          ]
+        },
+        "teams": {
+          "campEnabled": true,
+          "listUrl": "/camp?hackathon=monthly-vibe-coding-2026-02"
+        },
+        "submit": {
+          "allowedArtifactTypes": [
+            "text",
+            "url"
+          ],
+          "submissionUrl": "/hackathons/monthly-vibe-coding-2026-02#submit",
+          "guide": [
+            "Share a concise idea summary and the main workflow you designed.",
+            "If you have a demo, include a public URL."
+          ],
+          "submissionItems": [
+            {
+              "key": "idea",
+              "title": "Idea summary",
+              "format": "text"
+            },
+            {
+              "key": "demo",
+              "title": "Demo URL",
+              "format": "url"
+            }
+          ]
+        },
+        "leaderboard": {
+          "publicLeaderboardUrl": "/rankings",
+          "note": "This challenge shows final review results after the deadline."
+        }
+      }
+    },
+    {
       "slug": "daker-handover-2026-03",
       "title": "긴급 인수인계 해커톤: 명세서만 보고 구현하라",
       "sections": {
