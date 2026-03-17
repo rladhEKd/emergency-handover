@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AUTH_CHANGED_EVENT,
   getCurrentSession,
+  getStoredUsers,
   getTeamOwners,
   saveTeamOwners,
 } from "../../lib/local-auth";
@@ -30,12 +31,15 @@ type TeamMessage = {
   teamCode: string;
   senderUserId: string;
   senderNickname: string;
+  receiverUserId: string;
+  receiverNickname: string;
   title: string;
   content: string;
   createdAt: string;
 };
 
 const TEAM_MESSAGES_STORAGE_KEY = "team-messages-v1";
+const MESSAGE_HUB_CHANGED_EVENT = "message-hub-changed";
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString("ko-KR", {
@@ -62,6 +66,23 @@ function getHackathonTitle(slug: string) {
 
 function makeTeamCode() {
   return `T-${Date.now()}`;
+}
+
+function resolveMessageReceiver(teamCode: string, teamOwners: Record<string, string>) {
+  const receiverUserId = teamOwners[teamCode] || "";
+  if (!receiverUserId) {
+    return null;
+  }
+
+  const receiverUser = getStoredUsers().find((user) => user.id === receiverUserId);
+  if (!receiverUser?.nickname) {
+    return null;
+  }
+
+  return {
+    receiverUserId,
+    receiverNickname: receiverUser.nickname,
+  };
 }
 
 export default function CampPage() {
@@ -327,11 +348,20 @@ export default function CampPage() {
       existingMessages = [];
     }
 
+    const receiver = resolveMessageReceiver(messageTeamCode, teamOwners);
+
+    if (!receiver) {
+      setMessageError("Could not find the team owner information.");
+      return;
+    }
+
     const nextMessage: TeamMessage = {
       messageId: `M-${Date.now()}`,
       teamCode: messageTeamCode,
       senderUserId: currentUserId,
       senderNickname: currentNickname || "Member",
+      receiverUserId: receiver.receiverUserId,
+      receiverNickname: receiver.receiverNickname,
       title: messageTitle.trim(),
       content: messageContent.trim(),
       createdAt: new Date().toISOString(),
@@ -341,6 +371,7 @@ export default function CampPage() {
       TEAM_MESSAGES_STORAGE_KEY,
       JSON.stringify([nextMessage, ...existingMessages])
     );
+    window.dispatchEvent(new Event(MESSAGE_HUB_CHANGED_EVENT));
 
     resetMessageForm();
     alert("Message sent.");

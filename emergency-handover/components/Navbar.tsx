@@ -102,7 +102,8 @@ export default function Navbar() {
 
             {nickname ? (
               <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <span
+                <Link
+                  href="/dashboard"
                   style={{
                     padding: "10px 14px",
                     borderRadius: "12px",
@@ -111,10 +112,13 @@ export default function Navbar() {
                     color: "#111827",
                     fontWeight: 800,
                     fontSize: "14px",
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
                   }}
                 >
                   {nickname}
-                </span>
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}

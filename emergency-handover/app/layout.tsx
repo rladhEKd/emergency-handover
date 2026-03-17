@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "../components/Navbar";
+import FloatingMessageHub from "../components/FloatingMessageHub";
 
 export const metadata: Metadata = {
   title: "Hackathon Hub",
@@ -17,6 +18,7 @@ export default function RootLayout({
       <body>
         <Navbar />
         {children}
+        <FloatingMessageHub />
       </body>
     </html>
   );
