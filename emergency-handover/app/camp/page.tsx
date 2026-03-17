@@ -25,6 +25,18 @@ type Team = {
   createdAt: string;
 };
 
+type TeamMessage = {
+  messageId: string;
+  teamCode: string;
+  senderUserId: string;
+  senderNickname: string;
+  title: string;
+  content: string;
+  createdAt: string;
+};
+
+const TEAM_MESSAGES_STORAGE_KEY = "team-messages-v1";
+
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString("ko-KR", {
     year: "numeric",
@@ -68,6 +80,12 @@ export default function CampPage() {
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentNickname, setCurrentNickname] = useState("");
   const [teamOwners, setTeamOwners] = useState<Record<string, string>>({});
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [messageTeamCode, setMessageTeamCode] = useState("");
+  const [messageTeamName, setMessageTeamName] = useState("");
+  const [messageTitle, setMessageTitle] = useState("");
+  const [messageContent, setMessageContent] = useState("");
+  const [messageError, setMessageError] = useState("");
 
   function persistTeams(nextTeams: Team[]) {
     setTeams(nextTeams);
@@ -259,6 +277,73 @@ export default function CampPage() {
 
   function handleCancelEdit() {
     resetForm();
+  }
+
+  function resetMessageForm() {
+    setMessageModalOpen(false);
+    setMessageTeamCode("");
+    setMessageTeamName("");
+    setMessageTitle("");
+    setMessageContent("");
+    setMessageError("");
+  }
+
+  function handleOpenMessageModal(team: Team) {
+    if (!currentUserId) {
+      alert("Login is required to send a message.");
+      return;
+    }
+
+    setMessageTeamCode(team.teamCode);
+    setMessageTeamName(team.name);
+    setMessageTitle("");
+    setMessageContent("");
+    setMessageError("");
+    setMessageModalOpen(true);
+  }
+
+  function handleSendMessage(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!currentUserId) {
+      setMessageError("Login is required to send a message.");
+      return;
+    }
+
+    if (!messageTitle.trim() || !messageContent.trim()) {
+      setMessageError("Title and message are required.");
+      return;
+    }
+
+    let existingMessages: TeamMessage[] = [];
+
+    try {
+      const raw = localStorage.getItem(TEAM_MESSAGES_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as TeamMessage[];
+        existingMessages = Array.isArray(parsed) ? parsed : [];
+      }
+    } catch {
+      existingMessages = [];
+    }
+
+    const nextMessage: TeamMessage = {
+      messageId: `M-${Date.now()}`,
+      teamCode: messageTeamCode,
+      senderUserId: currentUserId,
+      senderNickname: currentNickname || "Member",
+      title: messageTitle.trim(),
+      content: messageContent.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem(
+      TEAM_MESSAGES_STORAGE_KEY,
+      JSON.stringify([nextMessage, ...existingMessages])
+    );
+
+    resetMessageForm();
+    alert("Message sent.");
   }
 
   return (
@@ -710,7 +795,25 @@ export default function CampPage() {
                         {team.isOpen ? "Close recruitment" : "Reopen recruitment"}
                       </button>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenMessageModal(team)}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "none",
+                          backgroundColor: "#2563eb",
+                          color: "#fff",
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Send message
+                      </button>
+                    </div>
+                  )}
                 </article>
               );
             })
@@ -719,6 +822,128 @@ export default function CampPage() {
           )}
         </div>
       </section>
+
+      {messageModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            zIndex: 60,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "560px",
+              borderRadius: "24px",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 20px 50px rgba(15, 23, 42, 0.18)",
+              padding: "24px",
+            }}
+          >
+            <h3 style={{ margin: "0 0 10px", fontSize: "24px", fontWeight: 900, color: "#111827" }}>
+              Send message
+            </h3>
+            <p style={{ margin: "0 0 16px", color: "#4b5563", lineHeight: 1.7 }}>
+              Send a message to {messageTeamName}.
+            </p>
+
+            <form onSubmit={handleSendMessage} style={{ display: "grid", gap: "16px" }}>
+              <div>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
+                  Title
+                </label>
+                <input
+                  value={messageTitle}
+                  onChange={(e) => setMessageTitle(e.target.value)}
+                  placeholder="Short title"
+                  style={{
+                    width: "100%",
+                    height: "48px",
+                    padding: "0 14px",
+                    borderRadius: "14px",
+                    border: "1px solid #d1d5db",
+                    background: "#fbfcfe",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
+                  Message
+                </label>
+                <textarea
+                  value={messageContent}
+                  onChange={(e) => setMessageContent(e.target.value)}
+                  placeholder="Write your message"
+                  rows={5}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: "14px",
+                    border: "1px solid #d1d5db",
+                    background: "#fbfcfe",
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+
+              {messageError ? (
+                <div
+                  style={{
+                    borderRadius: "14px",
+                    padding: "12px 14px",
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    color: "#b91c1c",
+                    fontWeight: 700,
+                  }}
+                >
+                  {messageError}
+                </div>
+              ) : null}
+
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={resetMessageForm}
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "14px",
+                    border: "1px solid #d1d5db",
+                    background: "#ffffff",
+                    color: "#374151",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "14px",
+                    border: "none",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Send
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
