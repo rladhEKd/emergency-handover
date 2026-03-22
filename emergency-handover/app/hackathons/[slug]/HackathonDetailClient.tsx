@@ -74,6 +74,9 @@ type TeamJoinRequest = {
   teamCode: string;
   requesterId: string;
   requesterName: string;
+  role: string;
+  message?: string;
+  portfolioUrl?: string;
   status: TeamJoinStatus;
   createdAt: string;
   respondedAt?: string;
@@ -81,7 +84,7 @@ type TeamJoinRequest = {
 
 type PendingTeamAction =
   | { type: "navigate"; url: string }
-  | { type: "request"; teamCode: string }
+  | { type: "request"; teamCode: string; role: string; message?: string; portfolioUrl?: string }
   | { type: "review"; teamCode: string; requesterId: string; nextStatus: Exclude<TeamJoinStatus, "pending"> };
 
 const SUBMISSION_STORAGE_PREFIX = "hackathon-submissions-v1";
@@ -305,10 +308,22 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentNickname, setCurrentNickname] = useState("");
+  const [requestModalTeamCode, setRequestModalTeamCode] = useState("");
+  const [requestRole, setRequestRole] = useState("");
+  const [requestMessage, setRequestMessage] = useState("");
+  const [requestPortfolioUrl, setRequestPortfolioUrl] = useState("");
+  const [requestFormError, setRequestFormError] = useState("");
   const [teamActionModalOpen, setTeamActionModalOpen] = useState(false);
   const [pendingTeamAction, setPendingTeamAction] = useState<PendingTeamAction | null>(null);
   const [teamOwners, setTeamOwners] = useState<Record<string, string>>({});
   const [teamJoinRequests, setTeamJoinRequests] = useState<TeamJoinRequest[]>([]);
+  const ownerTeams = useMemo(
+    () =>
+      hackathonTeams.filter(
+        (team) => !!currentUserId && teamOwners[team.teamCode] === currentUserId
+      ),
+    [currentUserId, hackathonTeams, teamOwners]
+  );
 
   useEffect(() => {
     try {
@@ -370,6 +385,49 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     );
   }
 
+  function resetRequestForm() {
+    setRequestModalTeamCode("");
+    setRequestRole("");
+    setRequestMessage("");
+    setRequestPortfolioUrl("");
+    setRequestFormError("");
+  }
+
+  function handleRequestModalOpen(teamCode: string) {
+    resetRequestForm();
+    setRequestModalTeamCode(teamCode);
+  }
+
+  function handleRequestModalClose() {
+    resetRequestForm();
+  }
+
+  function handleRequestDraftSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!requestModalTeamCode) return;
+
+    if (!requestRole.trim()) {
+      setRequestFormError("지원 포지션을 입력해 주세요.");
+      return;
+    }
+
+    if (requestPortfolioUrl.trim() && !isValidUrl(requestPortfolioUrl.trim())) {
+      setRequestFormError("포트폴리오 또는 GitHub 링크는 올바른 URL로 입력해 주세요.");
+      return;
+    }
+
+    setRequestFormError("");
+    handleTeamActionStart({
+      type: "request",
+      teamCode: requestModalTeamCode,
+      role: requestRole.trim(),
+      message: requestMessage.trim(),
+      portfolioUrl: requestPortfolioUrl.trim(),
+    });
+    resetRequestForm();
+  }
+
   function handleTeamActionStart(action: PendingTeamAction) {
     setPendingTeamAction(action);
     setTeamActionModalOpen(true);
@@ -402,6 +460,9 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               teamCode: pendingTeamAction.teamCode,
               requesterId: currentUserId,
               requesterName: currentNickname || "Member",
+              role: pendingTeamAction.role,
+              message: pendingTeamAction.message || "",
+              portfolioUrl: pendingTeamAction.portfolioUrl || "",
               status: "pending",
               createdAt: new Date().toISOString(),
             },
@@ -678,96 +739,263 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
             <StatCard label="Open teams" value={openTeams.length} tone="blue" />
           </div>
 
-          {!storageReady ? (
-            <StatePanel
-              kind="loading"
-              compact
-              title="팀 정보를 불러오는 중입니다"
-              description="잠시만 기다려 주세요."
-            />
-          ) : teamsError ? (
-            <StatePanel
-              kind="error"
-              compact
-              title={teamsError}
-              description="다시 시도해 주세요."
-            />
-          ) : openTeams.length > 0 ? (
-            <div style={{ display: "grid", gap: "12px", marginBottom: "18px" }}>
-              {openTeams.slice(0, 3).map((team) => {
-                const isOwner = isTeamOwner(team.teamCode);
-                const myJoinRequest = getMyJoinRequest(team.teamCode);
-                const ownerRequests = getTeamRequestsForOwner(team.teamCode);
+          <div
+            style={{
+              borderRadius: "20px",
+              background: "#fbfcfe",
+              border: "1px solid #e5e7eb",
+              padding: "18px",
+              marginBottom: "18px",
+            }}
+          >
+            <div style={{ marginBottom: "14px" }}>
+              <h3 style={{ margin: "0 0 8px", fontSize: "20px", fontWeight: 900, color: "#111827" }}>
+                공개 모집 정보
+              </h3>
+              <p style={{ margin: 0, color: "#6b7280", fontSize: "14px", lineHeight: 1.7 }}>
+                팀 소개와 모집 포지션처럼 공개 모집글 범위의 정보만 표시됩니다.
+              </p>
+            </div>
 
-                return (
-                <article key={team.teamCode} style={{ borderRadius: "18px", background: "#ffffff", border: "1px solid #e5e7eb", padding: "18px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "10px" }}>
-                    <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 900 }}>{team.name}</h3>
-                    <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#e8f7ea", color: "#1e7a35", fontWeight: 800, fontSize: "13px" }}>Recruiting</span>
-                  </div>
-                  <p style={{ margin: "0 0 10px", color: "#374151", lineHeight: 1.7 }}>{team.intro}</p>
-                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
-                    {team.lookingFor.length > 0 ? (
-                      team.lookingFor.map((role) => (
-                        <span key={role} style={{ display: "inline-block", padding: "7px 11px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontSize: "12px", fontWeight: 700 }}>{role}</span>
-                      ))
-                    ) : (
-                      <span style={{ color: "#6b7280", fontSize: "14px" }}>No role tags</span>
-                    )}
-                  </div>
-                  <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "12px" }}>{team.memberCount} members now - Posted {formatDate(team.createdAt)}</div>
+            {!storageReady ? (
+              <StatePanel
+                kind="loading"
+                compact
+                title="팀 정보를 불러오는 중입니다"
+                description="잠시만 기다려 주세요."
+              />
+            ) : teamsError ? (
+              <StatePanel
+                kind="error"
+                compact
+                title={teamsError}
+                description="다시 시도해 주세요."
+              />
+            ) : openTeams.length > 0 ? (
+              <div style={{ display: "grid", gap: "12px" }}>
+                {openTeams.slice(0, 3).map((team) => {
+                  const isOwner = isTeamOwner(team.teamCode);
+                  const myJoinRequest = getMyJoinRequest(team.teamCode);
 
-                  {isOwner ? (
-                    <div style={{ display: "grid", gap: "10px" }}>
-                      <div style={{ fontWeight: 800, color: "#111827" }}>Join requests</div>
+                  return (
+                    <article
+                      key={team.teamCode}
+                      style={{ borderRadius: "18px", background: "#ffffff", border: "1px solid #e5e7eb", padding: "18px" }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "10px" }}>
+                        <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 900 }}>{team.name}</h3>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                          {isOwner ? (
+                            <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#eff6ff", color: "#1d4ed8", fontWeight: 800, fontSize: "13px" }}>
+                              내 팀
+                            </span>
+                          ) : null}
+                          <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#e8f7ea", color: "#1e7a35", fontWeight: 800, fontSize: "13px" }}>
+                            Open
+                          </span>
+                        </div>
+                      </div>
+
+                      <p style={{ margin: "0 0 10px", color: "#374151", lineHeight: 1.7 }}>{team.intro}</p>
+
+                      <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "12px" }}>
+                        연결 해커톤 {hackathon.title}
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
+                        {team.lookingFor.length > 0 ? (
+                          team.lookingFor.map((role) => (
+                            <span
+                              key={role}
+                              style={{ display: "inline-block", padding: "7px 11px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontSize: "12px", fontWeight: 700 }}
+                            >
+                              {role}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ color: "#6b7280", fontSize: "14px" }}>모집 포지션 정보가 없습니다</span>
+                        )}
+                      </div>
+
+                      {isOwner ? (
+                        <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                          소유자 전용 요청 관리는 아래 영역에서 확인할 수 있습니다.
+                        </div>
+                      ) : myJoinRequest?.status === "accepted" ? (
+                        <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#e8f7ea", color: "#1e7a35", fontWeight: 800, fontSize: "13px" }}>
+                          Joined
+                        </span>
+                      ) : myJoinRequest?.status === "rejected" ? (
+                        <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#f3f4f6", color: "#4b5563", fontWeight: 800, fontSize: "13px" }}>
+                          Rejected
+                        </span>
+                      ) : myJoinRequest?.status === "pending" ? (
+                        <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "13px" }}>
+                          Pending
+                        </span>
+                      ) : currentUserId ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRequestModalOpen(team.teamCode)}
+                          style={{
+                            padding: "10px 14px",
+                            borderRadius: "10px",
+                            border: "none",
+                            background: "#2563eb",
+                            color: "#ffffff",
+                            fontWeight: 800,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Request to join
+                        </button>
+                      ) : (
+                        <Link
+                          href={authRedirectUrl}
+                          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 14px", borderRadius: "10px", background: "#2563eb", color: "#ffffff", fontWeight: 800, textDecoration: "none" }}
+                        >
+                          Login to join
+                        </Link>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <StatePanel
+                kind="empty"
+                compact
+                title="아직 모집 중인 팀이 없습니다"
+                description="팀 만들기 버튼으로 첫 팀 모집글을 등록해 보세요."
+              />
+            )}
+          </div>
+
+          {currentUserId && ownerTeams.length > 0 ? (
+            <div
+              style={{
+                borderRadius: "20px",
+                background: "#f8fafc",
+                border: "1px solid #dbeafe",
+                padding: "18px",
+                marginBottom: "18px",
+              }}
+            >
+              <div style={{ marginBottom: "14px" }}>
+                <h3 style={{ margin: "0 0 8px", fontSize: "20px", fontWeight: 900, color: "#111827" }}>
+                  내 팀 요청 관리
+                </h3>
+                <p style={{ margin: 0, color: "#6b7280", fontSize: "14px", lineHeight: 1.7 }}>
+                  소유자만 확인할 수 있는 정보입니다. 받은 참여 요청과 처리 상태를 여기에서 관리할 수 있습니다.
+                </p>
+              </div>
+
+              <div style={{ display: "grid", gap: "14px" }}>
+                {ownerTeams.map((team) => {
+                  const ownerRequests = getTeamRequestsForOwner(team.teamCode);
+
+                  return (
+                    <div
+                      key={`owner-${team.teamCode}`}
+                      style={{ borderRadius: "18px", background: "#ffffff", border: "1px solid #e5e7eb", padding: "18px" }}
+                    >
+                      <div style={{ fontWeight: 900, color: "#111827", marginBottom: "12px" }}>{team.name}</div>
+
                       {ownerRequests.length > 0 ? (
-                        ownerRequests.map((request) => (
-                          <div key={`${request.teamCode}-${request.requesterId}`} style={{ borderRadius: "14px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: request.status === "pending" ? "10px" : 0 }}>
-                              <div>
-                                <div style={{ fontWeight: 800, color: "#111827" }}>{request.requesterName}</div>
-                                <div style={{ color: "#6b7280", fontSize: "13px" }}>Requested {formatDate(request.createdAt)}</div>
+                        <div style={{ display: "grid", gap: "10px" }}>
+                          {ownerRequests.map((request) => (
+                            <div
+                              key={`${request.teamCode}-${request.requesterId}`}
+                              style={{ borderRadius: "14px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px" }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: request.status === "pending" ? "10px" : 0 }}>
+                                <div>
+                                  <div style={{ fontWeight: 800, color: "#111827" }}>{request.requesterName}</div>
+                                  <div style={{ color: "#374151", fontSize: "14px", marginTop: "4px" }}>
+                                    지원 포지션 {request.role || "미입력"}
+                                  </div>
+                                  <div style={{ color: "#6b7280", fontSize: "13px" }}>요청 시각 {formatDate(request.createdAt)}</div>
+                                </div>
+                                <span
+                                  style={{
+                                    display: "inline-block",
+                                    padding: "6px 10px",
+                                    borderRadius: "999px",
+                                    background: request.status === "accepted" ? "#e8f7ea" : request.status === "rejected" ? "#f3f4f6" : "#eef4ff",
+                                    color: request.status === "accepted" ? "#1e7a35" : request.status === "rejected" ? "#4b5563" : "#2457c5",
+                                    fontWeight: 800,
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  {request.status === "pending" ? "Pending" : request.status === "accepted" ? "Accepted" : "Rejected"}
+                                </span>
                               </div>
-                              <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: request.status === "accepted" ? "#e8f7ea" : request.status === "rejected" ? "#f3f4f6" : "#eef4ff", color: request.status === "accepted" ? "#1e7a35" : request.status === "rejected" ? "#4b5563" : "#2457c5", fontWeight: 800, fontSize: "12px" }}>
-                                {request.status === "pending" ? "Pending" : request.status === "accepted" ? "Accepted" : "Rejected"}
-                              </span>
+
+                              {request.message ? (
+                                <div style={{ color: "#374151", fontSize: "14px", lineHeight: 1.7, marginBottom: request.status === "pending" ? "10px" : "0" }}>
+                                  {request.message}
+                                </div>
+                              ) : null}
+
+                              {request.portfolioUrl ? (
+                                <div style={{ marginBottom: request.status === "pending" ? "10px" : "0" }}>
+                                  <a href={request.portfolioUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 700, fontSize: "14px" }}>
+                                    포트폴리오 또는 GitHub 보기
+                                  </a>
+                                </div>
+                              ) : null}
+
+                              {request.status === "pending" ? (
+                                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleTeamActionStart({
+                                        type: "review",
+                                        teamCode: team.teamCode,
+                                        requesterId: request.requesterId,
+                                        nextStatus: "accepted",
+                                      })
+                                    }
+                                    style={{
+                                      padding: "10px 14px",
+                                      borderRadius: "10px",
+                                      border: "none",
+                                      background: "#2563eb",
+                                      color: "#ffffff",
+                                      fontWeight: 800,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleTeamActionStart({
+                                        type: "review",
+                                        teamCode: team.teamCode,
+                                        requesterId: request.requesterId,
+                                        nextStatus: "rejected",
+                                      })
+                                    }
+                                    style={{
+                                      padding: "10px 14px",
+                                      borderRadius: "10px",
+                                      border: "1px solid #d1d5db",
+                                      background: "#ffffff",
+                                      color: "#374151",
+                                      fontWeight: 800,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              ) : null}
                             </div>
-                            {request.status === "pending" ? (
-                              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleTeamActionStart({ type: "review", teamCode: team.teamCode, requesterId: request.requesterId, nextStatus: "accepted" })}
-                                  style={{
-                                    padding: "10px 14px",
-                                    borderRadius: "10px",
-                                    border: "none",
-                                    background: "#2563eb",
-                                    color: "#ffffff",
-                                    fontWeight: 800,
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  Accept
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleTeamActionStart({ type: "review", teamCode: team.teamCode, requesterId: request.requesterId, nextStatus: "rejected" })}
-                                  style={{
-                                    padding: "10px 14px",
-                                    borderRadius: "10px",
-                                    border: "1px solid #d1d5db",
-                                    background: "#ffffff",
-                                    color: "#374151",
-                                    fontWeight: 800,
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  Reject
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        ))
+                          ))}
+                        </div>
                       ) : (
                         <StatePanel
                           kind={joinRequestsError ? "error" : "empty"}
@@ -777,51 +1005,11 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                         />
                       )}
                     </div>
-                  ) : myJoinRequest?.status === "accepted" ? (
-                    <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#e8f7ea", color: "#1e7a35", fontWeight: 800, fontSize: "13px" }}>
-                      Joined
-                    </span>
-                  ) : myJoinRequest?.status === "rejected" ? (
-                    <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#f3f4f6", color: "#4b5563", fontWeight: 800, fontSize: "13px" }}>
-                      Rejected
-                    </span>
-                  ) : myJoinRequest?.status === "pending" ? (
-                    <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "13px" }}>
-                      Pending
-                    </span>
-                  ) : currentUserId ? (
-                    <button
-                      type="button"
-                      onClick={() => handleTeamActionStart({ type: "request", teamCode: team.teamCode })}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: "10px",
-                        border: "none",
-                        background: "#2563eb",
-                        color: "#ffffff",
-                        fontWeight: 800,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Request to join
-                    </button>
-                  ) : (
-                    <Link href={authRedirectUrl} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 14px", borderRadius: "10px", background: "#2563eb", color: "#ffffff", fontWeight: 800, textDecoration: "none" }}>
-                      Login to join
-                    </Link>
-                  )}
-                </article>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          ) : (
-            <StatePanel
-              kind="empty"
-              compact
-              title="아직 모집 중인 팀이 없습니다"
-              description="팀 만들기 버튼으로 첫 팀 모집글을 등록해 보세요."
-            />
-          )}
+          ) : null}
 
           {details?.sections.teams?.listUrl ? (
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -1214,6 +1402,147 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           )}
         </SectionCard>
       )}
+      {requestModalTeamCode ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            zIndex: 58,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "560px",
+              borderRadius: "24px",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 20px 50px rgba(15, 23, 42, 0.18)",
+              padding: "24px",
+            }}
+          >
+            <h3 style={{ margin: "0 0 10px", fontSize: "24px", fontWeight: 900, color: "#111827" }}>
+              팀 지원 정보
+            </h3>
+            <p style={{ margin: "0 0 16px", color: "#4b5563", lineHeight: 1.7 }}>
+              지원 포지션과 간단한 소개를 남기면 팀 소유자가 더 쉽게 확인할 수 있습니다.
+            </p>
+
+            <form onSubmit={handleRequestDraftSubmit} style={{ display: "grid", gap: "16px" }}>
+              <div>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
+                  지원 포지션
+                </label>
+                <input
+                  value={requestRole}
+                  onChange={(e) => setRequestRole(e.target.value)}
+                  placeholder="예: Frontend, Designer"
+                  style={{
+                    width: "100%",
+                    height: "48px",
+                    padding: "0 14px",
+                    borderRadius: "14px",
+                    border: "1px solid #d1d5db",
+                    background: "#fbfcfe",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
+                  한 줄 소개 또는 지원 메시지
+                </label>
+                <textarea
+                  value={requestMessage}
+                  onChange={(e) => setRequestMessage(e.target.value)}
+                  placeholder="선택 입력"
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: "14px",
+                    border: "1px solid #d1d5db",
+                    background: "#fbfcfe",
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
+                  포트폴리오 또는 GitHub 링크
+                </label>
+                <input
+                  type="url"
+                  value={requestPortfolioUrl}
+                  onChange={(e) => setRequestPortfolioUrl(e.target.value)}
+                  placeholder="https://github.com/..."
+                  style={{
+                    width: "100%",
+                    height: "48px",
+                    padding: "0 14px",
+                    borderRadius: "14px",
+                    border: "1px solid #d1d5db",
+                    background: "#fbfcfe",
+                  }}
+                />
+              </div>
+
+              {requestFormError ? (
+                <div
+                  style={{
+                    borderRadius: "14px",
+                    padding: "12px 14px",
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    color: "#b91c1c",
+                    fontWeight: 700,
+                  }}
+                >
+                  {requestFormError}
+                </div>
+              ) : null}
+
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={handleRequestModalClose}
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "14px",
+                    border: "1px solid #d1d5db",
+                    background: "#ffffff",
+                    color: "#374151",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "14px",
+                    border: "none",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  다음
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
       {teamActionModalOpen && (
         <div
           style={{

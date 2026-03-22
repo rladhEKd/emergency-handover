@@ -211,8 +211,8 @@ export default function CampPage() {
       return;
     }
 
-    if (!name.trim() || !intro.trim() || !contactUrl.trim()) {
-      alert("팀 이름, 소개, 연락 링크를 입력해 주세요.");
+    if (!name.trim() || !intro.trim() || !lookingFor.trim()) {
+      alert("팀 이름, 소개, 모집 포지션을 입력해 주세요.");
       return;
     }
 
@@ -629,7 +629,7 @@ export default function CampPage() {
 
           <div style={{ marginTop: "16px" }}>
             <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              연락 링크
+              공개 연락 링크 (선택)
             </label>
             <input
               value={contactUrl}
@@ -644,6 +644,9 @@ export default function CampPage() {
                 backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
               }}
             />
+            <p style={{ marginTop: "6px", color: "#666", fontSize: "14px" }}>
+              오픈채팅 또는 폼 링크처럼 공개 가능한 연락 수단만 입력해 주세요.
+            </p>
           </div>
 
           <div style={{ marginTop: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -810,9 +813,32 @@ export default function CampPage() {
                     <strong>등록일:</strong> {formatDate(team.createdAt)}
                   </p>
 
-                  <a href={team.contact.url} target="_blank" rel="noreferrer">
-                    연락 링크 열기
-                  </a>
+                  {team.contact.url ? (
+                    <div style={{ marginBottom: "10px" }}>
+                      <div style={{ color: "#6b7280", fontSize: "13px", marginBottom: "8px" }}>
+                        팀장이 공개한 연락 링크입니다.
+                      </div>
+                      <a
+                        href={team.contact.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          border: "1px solid #d1d5db",
+                          backgroundColor: "#ffffff",
+                          color: "#374151",
+                          fontWeight: "bold",
+                          textDecoration: "none",
+                        }}
+                      >
+                        공개 연락 링크
+                      </a>
+                    </div>
+                  ) : null}
 
                   {canManage ? (
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
