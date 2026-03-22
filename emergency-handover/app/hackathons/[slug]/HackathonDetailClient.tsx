@@ -641,12 +641,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px" }}>
               {quickLinks.rules && (
                 <a href={quickLinks.rules} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px 18px", fontWeight: 800, color: "#2563eb" }}>
-                  View rules
+                  안내 보기
                 </a>
               )}
               {quickLinks.faq && (
                 <a href={quickLinks.faq} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px 18px", fontWeight: 800, color: "#2563eb" }}>
-                  View FAQ
+                  FAQ 보기
                 </a>
               )}
             </div>
@@ -733,10 +733,10 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "14px", marginBottom: "18px" }}>
-            <StatCard label="팀원 모집 게시판" value={details?.sections.teams?.campEnabled ? "Open" : "Off"} />
-            <StatCard label="Solo allowed" value={allowSolo ? "Yes" : "No"} />
-            <StatCard label="Max size" value={maxTeamSize} />
-            <StatCard label="Open teams" value={openTeams.length} tone="blue" />
+            <StatCard label="팀원 모집 게시판" value={details?.sections.teams?.campEnabled ? "모집중" : "닫힘"} />
+            <StatCard label="개인 참여" value={allowSolo ? "가능" : "불가"} />
+            <StatCard label="최대 인원" value={maxTeamSize} />
+            <StatCard label="모집중인 팀" value={openTeams.length} tone="blue" />
           </div>
 
           <div
@@ -791,7 +791,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                             </span>
                           ) : null}
                           <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#e8f7ea", color: "#1e7a35", fontWeight: 800, fontSize: "13px" }}>
-                            Open
+                            모집중
                           </span>
                         </div>
                       </div>
@@ -823,15 +823,15 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                         </div>
                       ) : myJoinRequest?.status === "accepted" ? (
                         <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#e8f7ea", color: "#1e7a35", fontWeight: 800, fontSize: "13px" }}>
-                          Joined
+                          참여중
                         </span>
                       ) : myJoinRequest?.status === "rejected" ? (
                         <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#f3f4f6", color: "#4b5563", fontWeight: 800, fontSize: "13px" }}>
-                          Rejected
+                          거절됨
                         </span>
                       ) : myJoinRequest?.status === "pending" ? (
                         <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "13px" }}>
-                          Pending
+                          대기중
                         </span>
                       ) : currentUserId ? (
                         <button
@@ -847,14 +847,14 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                             cursor: "pointer",
                           }}
                         >
-                          Request to join
+                          참여 요청
                         </button>
                       ) : (
                         <Link
                           href={authRedirectUrl}
                           style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "10px 14px", borderRadius: "10px", background: "#2563eb", color: "#ffffff", fontWeight: 800, textDecoration: "none" }}
                         >
-                          Login to join
+                          Login 후 참여 요청
                         </Link>
                       )}
                     </article>
@@ -927,7 +927,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                                     fontSize: "12px",
                                   }}
                                 >
-                                  {request.status === "pending" ? "Pending" : request.status === "accepted" ? "Accepted" : "Rejected"}
+                                  {request.status === "pending" ? "대기중" : request.status === "accepted" ? "수락됨" : "거절됨"}
                                 </span>
                               </div>
 
@@ -967,7 +967,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                                       cursor: "pointer",
                                     }}
                                   >
-                                    Accept
+                                    수락
                                   </button>
                                   <button
                                     type="button"
@@ -989,7 +989,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                                       cursor: "pointer",
                                     }}
                                   >
-                                    Reject
+                                    거절
                                   </button>
                                 </div>
                               ) : null}

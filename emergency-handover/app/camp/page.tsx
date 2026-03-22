@@ -453,7 +453,7 @@ export default function CampPage() {
               checked={openOnly}
               onChange={(e) => setOpenOnly(e.target.checked)}
             />
-            Open만 보기
+            모집중만 보기
           </label>
         </div>
       </section>
@@ -578,8 +578,8 @@ export default function CampPage() {
                   backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
                 }}
               >
-                <option value="open">Open</option>
-                <option value="closed">Closed</option>
+                <option value="open">모집중</option>
+                <option value="closed">모집 마감</option>
               </select>
             </div>
           </div>
@@ -771,7 +771,7 @@ export default function CampPage() {
                           fontSize: "14px",
                         }}
                       >
-                        {team.isOpen ? "Open" : "Closed"}
+                        {team.isOpen ? "모집중" : "모집 마감"}
                       </span>
                     </div>
                   </div>
@@ -960,7 +960,7 @@ export default function CampPage() {
 
               <div>
                 <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
-                  Message 내용
+                  쪽지 내용
                 </label>
                 <textarea
                   value={messageContent}

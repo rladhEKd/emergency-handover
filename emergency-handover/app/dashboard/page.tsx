@@ -19,6 +19,9 @@ type TeamJoinRequest = {
   status: "pending" | "accepted" | "rejected";
   createdAt: string;
   respondedAt?: string;
+  role?: string;
+  message?: string;
+  portfolioUrl?: string;
 };
 
 type TeamMessage = {
@@ -26,6 +29,8 @@ type TeamMessage = {
   teamCode: string;
   senderUserId: string;
   senderNickname: string;
+  receiverUserId?: string;
+  receiverNickname?: string;
   title: string;
   content: string;
   createdAt: string;
@@ -78,14 +83,20 @@ function formatDate(dateString: string) {
 
 function getStatusBadge(status: "pending" | "accepted" | "rejected") {
   if (status === "accepted") {
-    return { label: "Accepted", background: "#e8f7ea", color: "#1e7a35" };
+    return { label: "수락됨", background: "#e8f7ea", color: "#1e7a35" };
   }
 
   if (status === "rejected") {
-    return { label: "Rejected", background: "#f3f4f6", color: "#4b5563" };
+    return { label: "거절됨", background: "#f3f4f6", color: "#4b5563" };
   }
 
-  return { label: "Pending", background: "#eef4ff", color: "#2457c5" };
+  return { label: "대기중", background: "#eef4ff", color: "#2457c5" };
+}
+
+function compareRequests(a: TeamJoinRequest, b: TeamJoinRequest) {
+  if (a.status === "pending" && b.status !== "pending") return -1;
+  if (a.status !== "pending" && b.status === "pending") return 1;
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 }
 
 function getHackathonTitle(slug: string) {
@@ -187,12 +198,14 @@ function readSavedSubmissionsForUser(userId: string) {
 function ToggleCard({
   label,
   value,
+  hint,
   open,
   onToggle,
   children,
 }: {
   label: string;
   value: number;
+  hint?: string;
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
@@ -223,9 +236,10 @@ function ToggleCard({
           <div>
             <div style={{ fontSize: "14px", color: "#6b7280", marginBottom: "10px" }}>{label}</div>
             <div style={{ fontSize: "32px", fontWeight: 900, color: "#111827" }}>{value}</div>
+            {hint ? <div style={{ fontSize: "13px", color: open ? "#2563eb" : "#6b7280", marginTop: "8px", fontWeight: 700 }}>{hint}</div> : null}
           </div>
           <div style={{ fontSize: "14px", fontWeight: 800, color: open ? "#2563eb" : "#6b7280" }}>
-            {open ? "접기" : "보기"}
+            {open ? "접기" : "상세 보기"}
           </div>
         </div>
       </button>
@@ -265,6 +279,8 @@ export default function DashboardPage() {
     sentMessages: false,
     savedSubmissions: false,
   });
+  const [selectedRequest, setSelectedRequest] = useState<{ item: TeamJoinRequest; ownerView: boolean } | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<TeamMessage | null>(null);
 
   useEffect(() => {
     function syncDashboard() {
@@ -307,10 +323,10 @@ export default function DashboardPage() {
         const messages = readStoredMessages();
         const sentRequests = joinRequests
           .filter((request) => request.requesterId === nextUserId)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          .sort(compareRequests);
         const receivedRequests = joinRequests
           .filter((request) => myTeamCodes.includes(request.teamCode))
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          .sort(compareRequests);
         const sentMessages = messages
           .filter((message) => message.senderUserId === nextUserId)
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -357,6 +373,75 @@ export default function DashboardPage() {
     }));
   }
 
+  function updateJoinRequestStatus(item: TeamJoinRequest, nextStatus: "accepted" | "rejected") {
+    if (typeof window === "undefined") return;
+
+    const respondedAt = new Date().toISOString();
+
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key || !key.startsWith(TEAM_JOIN_REQUESTS_PREFIX)) {
+        continue;
+      }
+
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) continue;
+
+        const parsed = JSON.parse(raw) as TeamJoinRequest[];
+        if (!Array.isArray(parsed)) continue;
+
+        let changed = false;
+        const nextRequests = parsed.map((request) => {
+          if (
+            request.teamCode === item.teamCode &&
+            request.requesterId === item.requesterId &&
+            request.createdAt === item.createdAt
+          ) {
+            changed = true;
+            return {
+              ...request,
+              status: nextStatus,
+              respondedAt,
+            };
+          }
+
+          return request;
+        });
+
+        if (!changed) {
+          continue;
+        }
+
+        window.localStorage.setItem(key, JSON.stringify(nextRequests));
+        setLists((current) => ({
+          ...current,
+          receivedRequests: current.receivedRequests.map((request) =>
+            request.teamCode === item.teamCode &&
+            request.requesterId === item.requesterId &&
+            request.createdAt === item.createdAt
+              ? { ...request, status: nextStatus, respondedAt }
+              : request
+          ),
+        }));
+        setSelectedRequest((current) =>
+          current &&
+          current.item.teamCode === item.teamCode &&
+          current.item.requesterId === item.requesterId &&
+          current.item.createdAt === item.createdAt
+            ? {
+                ...current,
+                item: { ...current.item, status: nextStatus, respondedAt },
+              }
+            : current
+        );
+        break;
+      } catch {
+        continue;
+      }
+    }
+  }
+
   if (!userId) {
     return (
       <main style={{ maxWidth: "980px", margin: "0 auto", padding: "32px 20px 72px" }}>
@@ -397,6 +482,10 @@ export default function DashboardPage() {
     );
   }
 
+  const pendingSentRequests = lists.sentRequests.filter((request) => request.status === "pending").length;
+  const pendingReceivedRequests = lists.receivedRequests.filter((request) => request.status === "pending").length;
+  const recentSentMessageTitles = lists.sentMessages.slice(0, 2).map((message) => message.title).filter(Boolean);
+
   return (
     <main style={{ maxWidth: "1120px", margin: "0 auto", padding: "32px 20px 72px" }}>
       <section
@@ -430,7 +519,13 @@ export default function DashboardPage() {
         />
       ) : (
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-        <ToggleCard label="내 팀" value={summary.myTeams} open={openPanels.myTeams} onToggle={() => togglePanel("myTeams")}>
+        <ToggleCard
+          label="내 팀"
+          value={summary.myTeams}
+          hint={summary.myTeams > 0 ? `${lists.myTeams.filter((team) => team.isOpen).length}개 팀이 모집중` : "팀 현황을 확인해 보세요"}
+          open={openPanels.myTeams}
+          onToggle={() => togglePanel("myTeams")}
+        >
           {lists.myTeams.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.myTeams.map((team) => (
@@ -445,17 +540,35 @@ export default function DashboardPage() {
           )}
         </ToggleCard>
 
-        <ToggleCard label="보낸 Request" value={summary.sentRequests} open={openPanels.sentRequests} onToggle={() => togglePanel("sentRequests")}>
+        <ToggleCard
+          label="보낸 요청"
+          value={summary.sentRequests}
+          hint={pendingSentRequests > 0 ? `${pendingSentRequests}건 응답 대기중` : "최근 요청 상태를 확인해 보세요"}
+          open={openPanels.sentRequests}
+          onToggle={() => togglePanel("sentRequests")}
+        >
           {lists.sentRequests.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.sentRequests.map((request) => {
                 const badge = getStatusBadge(request.status);
 
                 return (
-                  <article key={`${request.teamCode}-${request.requesterId}-${request.createdAt}`} style={{ borderRadius: "18px", background: "#fbfcfe", border: "1px solid #edf0f5", padding: "16px" }}>
+                  <article key={`${request.teamCode}-${request.requesterId}-${request.createdAt}`} style={{ borderRadius: "18px", background: request.status === "pending" ? "#f8fbff" : "#fbfcfe", border: request.status === "pending" ? "1px solid #bfdbfe" : "1px solid #edf0f5", boxShadow: request.status === "pending" ? "0 10px 24px rgba(37, 99, 235, 0.08)" : "none", padding: "16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "8px" }}>
-                      <div style={{ fontWeight: 900, color: "#111827" }}>{teamsByCode[request.teamCode] || request.teamCode}</div>
-                      <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
+                      <div>
+                        <div style={{ fontWeight: 900, color: "#111827" }}>{teamsByCode[request.teamCode] || request.teamCode}</div>
+                        <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "4px" }}>{request.role?.trim() ? `지원 포지션 ${request.role}` : "지원 포지션 미입력"}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRequest({ item: request, ownerView: false })}
+                          style={{ padding: "8px 12px", borderRadius: "10px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}
+                        >
+                          상세 보기
+                        </button>
+                      </div>
                     </div>
                     <div style={{ color: "#6b7280", fontSize: "14px" }}>생성일 {formatDate(request.createdAt)}</div>
                   </article>
@@ -463,24 +576,40 @@ export default function DashboardPage() {
               })}
             </div>
           ) : (
-            <EmptyState text="아직 보낸 Request가 없습니다." />
+            <EmptyState text="아직 보낸 요청이 없습니다." />
           )}
         </ToggleCard>
 
-        <ToggleCard label="받은 Request" value={summary.receivedRequests} open={openPanels.receivedRequests} onToggle={() => togglePanel("receivedRequests")}>
+        <ToggleCard
+          label="받은 요청"
+          value={summary.receivedRequests}
+          hint={pendingReceivedRequests > 0 ? `${pendingReceivedRequests}건 대기중` : "처리가 필요한 요청을 확인해 보세요"}
+          open={openPanels.receivedRequests}
+          onToggle={() => togglePanel("receivedRequests")}
+        >
           {lists.receivedRequests.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.receivedRequests.map((request) => {
                 const badge = getStatusBadge(request.status);
 
                 return (
-                  <article key={`${request.teamCode}-${request.requesterId}-${request.createdAt}`} style={{ borderRadius: "18px", background: "#fbfcfe", border: "1px solid #edf0f5", padding: "16px" }}>
+                  <article key={`${request.teamCode}-${request.requesterId}-${request.createdAt}`} style={{ borderRadius: "18px", background: request.status === "pending" ? "#f8fbff" : "#fbfcfe", border: request.status === "pending" ? "1px solid #bfdbfe" : "1px solid #edf0f5", boxShadow: request.status === "pending" ? "0 10px 24px rgba(37, 99, 235, 0.08)" : "none", padding: "16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "8px" }}>
                       <div>
                         <div style={{ fontWeight: 900, color: "#111827" }}>{teamsByCode[request.teamCode] || request.teamCode}</div>
                         <div style={{ color: "#6b7280", fontSize: "14px" }}>{request.requesterName || request.requesterId}</div>
+                        <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "4px" }}>{request.role?.trim() ? `지원 포지션 ${request.role}` : "지원 포지션 미입력"}</div>
                       </div>
-                      <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRequest({ item: request, ownerView: true })}
+                          style={{ padding: "8px 12px", borderRadius: "10px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}
+                        >
+                          상세 보기
+                        </button>
+                      </div>
                     </div>
                     <div style={{ color: "#6b7280", fontSize: "14px" }}>생성일 {formatDate(request.createdAt)}</div>
                   </article>
@@ -488,11 +617,17 @@ export default function DashboardPage() {
               })}
             </div>
           ) : (
-            <EmptyState text="아직 받은 Request가 없습니다." />
+            <EmptyState text="아직 받은 요청이 없습니다." />
           )}
         </ToggleCard>
 
-        <ToggleCard label="보낸 Message" value={summary.sentMessages} open={openPanels.sentMessages} onToggle={() => togglePanel("sentMessages")}>
+        <ToggleCard
+          label="보낸 쪽지"
+          value={summary.sentMessages}
+          hint={recentSentMessageTitles.length > 0 ? recentSentMessageTitles.join(" / ") : "최근 보낸 쪽지를 확인해 보세요"}
+          open={openPanels.sentMessages}
+          onToggle={() => togglePanel("sentMessages")}
+        >
           {lists.sentMessages.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.sentMessages.map((message) => (
@@ -501,16 +636,26 @@ export default function DashboardPage() {
                     <div>
                       <div style={{ fontWeight: 900, color: "#111827" }}>{message.title}</div>
                       <div style={{ color: "#6b7280", fontSize: "14px" }}>{teamsByCode[message.teamCode] || message.teamCode}</div>
+                      {message.receiverNickname ? <div style={{ color: "#374151", fontSize: "13px", marginTop: "6px" }}>받는 사람 {message.receiverNickname}</div> : null}
                     </div>
-                    <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "12px" }}>전송 완료</span>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "12px" }}>전송 완료</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMessage(message)}
+                        style={{ padding: "8px 12px", borderRadius: "10px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}
+                      >
+                        상세 보기
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>본문은 Message Hub에서 확인할 수 있습니다.</div>
+                  <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>본문은 상세 보기에서 확인할 수 있습니다.</div>
                   <div style={{ color: "#6b7280", fontSize: "14px" }}>생성일 {formatDate(message.createdAt)}</div>
                 </article>
               ))}
             </div>
           ) : (
-            <EmptyState text="아직 보낸 Message가 없습니다." />
+            <EmptyState text="아직 보낸 쪽지가 없습니다." />
           )}
         </ToggleCard>
 
@@ -535,6 +680,153 @@ export default function DashboardPage() {
         </ToggleCard>
       </section>
       )}
+
+      {selectedRequest ? (
+        <>
+          <button
+            type="button"
+            aria-label="요청 상세 닫기"
+            onClick={() => setSelectedRequest(null)}
+            style={{ position: "fixed", inset: 0, border: "none", background: "rgba(15, 23, 42, 0.22)", padding: 0, margin: 0, zIndex: 71, cursor: "pointer" }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              right: "20px",
+              bottom: "20px",
+              width: "min(440px, calc(100vw - 24px))",
+              borderRadius: "24px",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
+              zIndex: 72,
+              padding: "20px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>요청 상세</div>
+                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>
+                  {teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRequest(null)}
+                style={{ width: "36px", height: "36px", borderRadius: "999px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}
+              >
+                X
+              </button>
+            </div>
+
+            {(() => {
+              const badge = getStatusBadge(selectedRequest.item.status);
+
+              return (
+                <>
+                  <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
+                    <div>
+                      상태
+                      <span style={{ display: "inline-block", marginLeft: "8px", padding: "4px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
+                    </div>
+                    <div>{selectedRequest.ownerView ? `요청자 ${selectedRequest.item.requesterName || selectedRequest.item.requesterId}` : `대상 팀 ${teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}`}</div>
+                    <div>지원 포지션 {selectedRequest.item.role?.trim() || "미입력"}</div>
+                    <div>생성 시각 {formatDate(selectedRequest.item.createdAt)}</div>
+                    {selectedRequest.item.respondedAt ? <div>처리 시각 {formatDate(selectedRequest.item.respondedAt)}</div> : null}
+                  </div>
+
+                  {selectedRequest.item.message?.trim() ? (
+                    <div style={{ marginBottom: "12px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>지원 메시지</div>
+                      <div style={{ borderRadius: "16px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px", color: "#111827", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+                        {selectedRequest.item.message}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedRequest.item.portfolioUrl?.trim() ? (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>포트폴리오 또는 GitHub</div>
+                      <a href={selectedRequest.item.portfolioUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 800, wordBreak: "break-all" }}>
+                        {selectedRequest.item.portfolioUrl}
+                      </a>
+                    </div>
+                  ) : null}
+
+                  {selectedRequest.ownerView && selectedRequest.item.status === "pending" ? (
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        onClick={() => updateJoinRequestStatus(selectedRequest.item, "rejected")}
+                        style={{ padding: "10px 14px", borderRadius: "12px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}
+                      >
+                        거절
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateJoinRequestStatus(selectedRequest.item, "accepted")}
+                        style={{ padding: "10px 14px", borderRadius: "12px", border: "none", background: "#2563eb", color: "#ffffff", fontWeight: 800, cursor: "pointer" }}
+                      >
+                        수락
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
+          </div>
+        </>
+      ) : null}
+
+      {selectedMessage ? (
+        <>
+          <button
+            type="button"
+            aria-label="쪽지 상세 닫기"
+            onClick={() => setSelectedMessage(null)}
+            style={{ position: "fixed", inset: 0, border: "none", background: "rgba(15, 23, 42, 0.22)", padding: 0, margin: 0, zIndex: 71, cursor: "pointer" }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              right: "20px",
+              bottom: "20px",
+              width: "min(440px, calc(100vw - 24px))",
+              borderRadius: "24px",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
+              zIndex: 72,
+              padding: "20px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>쪽지 상세</div>
+                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{selectedMessage.title}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedMessage(null)}
+                style={{ width: "36px", height: "36px", borderRadius: "999px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}
+              >
+                X
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
+              <div>팀 {teamsByCode[selectedMessage.teamCode] || selectedMessage.teamCode}</div>
+              <div>보낸 사람 {selectedMessage.senderNickname}</div>
+              {selectedMessage.receiverNickname ? <div>받는 사람 {selectedMessage.receiverNickname}</div> : null}
+              <div>생성 시각 {formatDate(selectedMessage.createdAt)}</div>
+            </div>
+
+            <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px", color: "#111827", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+              {selectedMessage.content}
+            </div>
+          </div>
+        </>
+      ) : null}
     </main>
   );
 }

@@ -16,6 +16,10 @@ type TeamJoinRequest = {
   requesterName: string;
   status: "pending" | "accepted" | "rejected";
   createdAt: string;
+  respondedAt?: string;
+  role?: string;
+  message?: string;
+  portfolioUrl?: string;
 };
 
 type TeamMessage = {
@@ -46,16 +50,22 @@ function formatDate(dateString: string) {
   });
 }
 
+function compareRequests(a: TeamJoinRequest, b: TeamJoinRequest) {
+  if (a.status === "pending" && b.status !== "pending") return -1;
+  if (a.status !== "pending" && b.status === "pending") return 1;
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
 function getStatusBadge(status: "pending" | "accepted" | "rejected") {
   if (status === "accepted") {
-    return { label: "Accepted", background: "#e8f7ea", color: "#1e7a35" };
+    return { label: "수락됨", background: "#e8f7ea", color: "#1e7a35" };
   }
 
   if (status === "rejected") {
-    return { label: "Rejected", background: "#f3f4f6", color: "#4b5563" };
+    return { label: "거절됨", background: "#f3f4f6", color: "#4b5563" };
   }
 
-  return { label: "Pending", background: "#eef4ff", color: "#2457c5" };
+  return { label: "대기중", background: "#eef4ff", color: "#2457c5" };
 }
 
 function readTeams() {
@@ -155,6 +165,7 @@ export default function FloatingMessageHub() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("receivedRequests");
   const [selectedMessage, setSelectedMessage] = useState<TeamMessage | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<{ item: TeamJoinRequest; ownerView: boolean } | null>(null);
   const [hubReady, setHubReady] = useState(false);
   const [hubError, setHubError] = useState("");
   const [teamsByCode, setTeamsByCode] = useState<Record<string, string>>({});
@@ -200,12 +211,12 @@ export default function FloatingMessageHub() {
         setReceivedRequests(
           allRequests
             .filter((request) => myTeamCodes.includes(request.teamCode))
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .sort(compareRequests)
         );
         setSentRequests(
           allRequests
             .filter((request) => request.requesterId === nextUserId)
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .sort(compareRequests)
         );
         setReceivedMessages(
           allMessages
@@ -256,6 +267,79 @@ export default function FloatingMessageHub() {
     return null;
   }
 
+  const pendingReceivedRequestCount = receivedRequests.filter((request) => request.status === "pending").length;
+  const hubBadgeCount = pendingReceivedRequestCount + receivedMessages.length;
+
+  function updateJoinRequestStatus(item: TeamJoinRequest, nextStatus: "accepted" | "rejected") {
+    if (typeof window === "undefined") return;
+
+    const respondedAt = new Date().toISOString();
+
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key || !key.startsWith(TEAM_JOIN_REQUESTS_PREFIX)) {
+        continue;
+      }
+
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) continue;
+
+        const parsed = JSON.parse(raw) as TeamJoinRequest[];
+        if (!Array.isArray(parsed)) continue;
+
+        let changed = false;
+        const nextRequests = parsed.map((request) => {
+          if (
+            request.teamCode === item.teamCode &&
+            request.requesterId === item.requesterId &&
+            request.createdAt === item.createdAt
+          ) {
+            changed = true;
+            return {
+              ...request,
+              status: nextStatus,
+              respondedAt,
+            };
+          }
+
+          return request;
+        });
+
+        if (!changed) {
+          continue;
+        }
+
+        window.localStorage.setItem(key, JSON.stringify(nextRequests));
+        window.dispatchEvent(new Event(MESSAGE_HUB_CHANGED_EVENT));
+
+        setReceivedRequests((current) =>
+          current.map((request) =>
+            request.teamCode === item.teamCode &&
+            request.requesterId === item.requesterId &&
+            request.createdAt === item.createdAt
+              ? { ...request, status: nextStatus, respondedAt }
+              : request
+          )
+        );
+        setSelectedRequest((current) =>
+          current &&
+          current.item.teamCode === item.teamCode &&
+          current.item.requesterId === item.requesterId &&
+          current.item.createdAt === item.createdAt
+            ? {
+                ...current,
+                item: { ...current.item, status: nextStatus, respondedAt },
+              }
+            : current
+        );
+        break;
+      } catch {
+        continue;
+      }
+    }
+  }
+
 function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyText: string, showRequester: boolean) {
     if (!hubReady) {
       return <StatePanel kind="loading" compact title="목록을 불러오는 중입니다" description="잠시만 기다려 주세요." />;
@@ -281,12 +365,47 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
                 const badge = getStatusBadge(item.status);
 
                 return (
-                  <div key={`${item.teamCode}-${item.requesterId}-${item.createdAt}`} style={{ borderRadius: "14px", background: "#ffffff", border: "1px solid #e5e7eb", padding: "12px" }}>
+                  <div
+                    key={`${item.teamCode}-${item.requesterId}-${item.createdAt}`}
+                    style={{
+                      borderRadius: "14px",
+                      background: item.status === "pending" ? "#f8fbff" : "#ffffff",
+                      border: item.status === "pending" ? "1px solid #bfdbfe" : "1px solid #e5e7eb",
+                      boxShadow: item.status === "pending" ? "0 10px 24px rgba(37, 99, 235, 0.08)" : "none",
+                      padding: "12px",
+                    }}
+                  >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
-                      <div style={{ fontWeight: 800, color: "#111827" }}>{showRequester ? item.requesterName || item.requesterId : nickname}</div>
-                      <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>
-                        {badge.label}
-                      </span>
+                      <div>
+                        <div style={{ fontWeight: 800, color: "#111827" }}>{showRequester ? item.requesterName || item.requesterId : nickname}</div>
+                        <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "4px" }}>
+                          {item.role?.trim() ? `지원 포지션 ${item.role}` : "지원 포지션 미입력"}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>
+                          {badge.label}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRequest({ item, ownerView: showRequester })}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "8px 12px",
+                            borderRadius: "10px",
+                            border: "1px solid #d1d5db",
+                            background: "#ffffff",
+                            color: "#374151",
+                            fontWeight: 800,
+                            fontSize: "12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          상세 보기
+                        </button>
+                      </div>
                     </div>
                     <div style={{ color: "#6b7280", fontSize: "13px" }}>생성일 {formatDate(item.createdAt)}</div>
                   </div>
@@ -320,6 +439,9 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
               <div>
                 <div style={{ fontWeight: 900, color: "#111827" }}>{item.title}</div>
                 <div style={{ color: "#6b7280", fontSize: "14px" }}>{teamsByCode[item.teamCode] || item.teamCode}</div>
+                <div style={{ color: "#374151", fontSize: "13px", marginTop: "6px" }}>
+                  {type === "received" ? `보낸 사람 ${item.senderNickname}` : `받는 사람 ${item.receiverNickname}`}
+                </div>
               </div>
               <button
                 type="button"
@@ -338,11 +460,8 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
                   cursor: "pointer",
                 }}
               >
-                보기
+                상세 보기
               </button>
-            </div>
-            <div style={{ color: "#374151", fontSize: "14px", marginBottom: "6px" }}>
-              {type === "received" ? `From ${item.senderNickname}` : `To ${item.receiverNickname}`}
             </div>
             <div style={{ color: "#6b7280", fontSize: "13px" }}>생성일 {formatDate(item.createdAt)}</div>
           </div>
@@ -374,7 +493,7 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        aria-label="Open message hub"
+        aria-label="쪽지 허브 열기"
         style={{
           position: "fixed",
           right: "20px",
@@ -392,7 +511,30 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
           zIndex: 70,
         }}
       >
-        Msg
+        MSG
+        {hubBadgeCount > 0 ? (
+          <span
+            style={{
+              position: "absolute",
+              top: "-2px",
+              right: "-2px",
+              minWidth: "24px",
+              height: "24px",
+              padding: "0 6px",
+              borderRadius: "999px",
+              background: "#ef4444",
+              color: "#ffffff",
+              fontWeight: 900,
+              fontSize: "12px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 10px 24px rgba(239, 68, 68, 0.35)",
+            }}
+          >
+            {hubBadgeCount > 99 ? "99+" : hubBadgeCount}
+          </span>
+        ) : null}
       </button>
 
       {open ? (
@@ -440,10 +582,10 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
 
           <div style={{ display: "flex", gap: "8px", padding: "12px 18px", borderBottom: "1px solid #eef2f7", flexWrap: "wrap" }}>
             {[
-              { key: "receivedRequests", label: "받은 Request" },
-              { key: "sentRequests", label: "보낸 Request" },
-              { key: "receivedMessages", label: "받은 Message" },
-              { key: "sentMessages", label: "보낸 Message" },
+              { key: "receivedRequests", label: "받은 요청", count: receivedRequests.length },
+              { key: "sentRequests", label: "보낸 요청", count: sentRequests.length },
+              { key: "receivedMessages", label: "받은 쪽지", count: receivedMessages.length },
+              { key: "sentMessages", label: "보낸 쪽지", count: sentMessages.length },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -453,25 +595,164 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
                   padding: "10px 12px",
                   borderRadius: "12px",
                   border: activeTab === tab.key ? "1px solid #2563eb" : "1px solid #d1d5db",
-                  background: activeTab === tab.key ? "#eff6ff" : "#ffffff",
-                  color: activeTab === tab.key ? "#2563eb" : "#374151",
+                  background: activeTab === tab.key ? "#dbeafe" : "#ffffff",
+                  color: activeTab === tab.key ? "#1d4ed8" : "#374151",
                   fontWeight: 800,
                   fontSize: "13px",
+                  boxShadow: activeTab === tab.key ? "0 10px 24px rgba(37, 99, 235, 0.12)" : "none",
                   cursor: "pointer",
                 }}
               >
-                {tab.label}
+                {tab.label} ({tab.count})
               </button>
             ))}
           </div>
 
           <div style={{ overflow: "auto", padding: "18px" }}>
-            {activeTab === "receivedRequests" ? renderRequestGroups(groupedReceivedRequests, "아직 받은 Request가 없습니다.", true) : null}
-            {activeTab === "sentRequests" ? renderRequestGroups(groupedSentRequests, "아직 보낸 Request가 없습니다.", false) : null}
-            {activeTab === "receivedMessages" ? renderMessageList(receivedMessages, "아직 받은 Message가 없습니다.", "received") : null}
-            {activeTab === "sentMessages" ? renderMessageList(sentMessages, "아직 보낸 Message가 없습니다.", "sent") : null}
+            {activeTab === "receivedRequests" ? renderRequestGroups(groupedReceivedRequests, "아직 받은 요청이 없습니다.", true) : null}
+            {activeTab === "sentRequests" ? renderRequestGroups(groupedSentRequests, "아직 보낸 요청이 없습니다.", false) : null}
+            {activeTab === "receivedMessages" ? renderMessageList(receivedMessages, "아직 받은 쪽지가 없습니다.", "received") : null}
+            {activeTab === "sentMessages" ? renderMessageList(sentMessages, "아직 보낸 쪽지가 없습니다.", "sent") : null}
           </div>
         </div>
+      ) : null}
+
+      {selectedRequest ? (
+        <>
+          <button
+            type="button"
+            aria-label="요청 상세 닫기"
+            onClick={() => setSelectedRequest(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              border: "none",
+              background: "rgba(15, 23, 42, 0.22)",
+              padding: 0,
+              margin: 0,
+              zIndex: 71,
+              cursor: "pointer",
+            }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              right: "20px",
+              bottom: "92px",
+              width: "min(420px, calc(100vw - 24px))",
+              borderRadius: "24px",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
+              zIndex: 72,
+              padding: "20px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>요청 상세</div>
+                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>
+                  {teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRequest(null)}
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "999px",
+                  border: "1px solid #d1d5db",
+                  background: "#ffffff",
+                  color: "#374151",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                X
+              </button>
+            </div>
+
+            {(() => {
+              const badge = getStatusBadge(selectedRequest.item.status);
+
+              return (
+                <>
+                  <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
+                    <div>
+                      상태
+                      <span style={{ display: "inline-block", marginLeft: "8px", padding: "4px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>
+                        {badge.label}
+                      </span>
+                    </div>
+                    <div>{selectedRequest.ownerView ? `요청자 ${selectedRequest.item.requesterName || selectedRequest.item.requesterId}` : `대상 팀 ${teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}`}</div>
+                    <div>지원 포지션 {selectedRequest.item.role?.trim() || "미입력"}</div>
+                    <div>생성 시각 {formatDate(selectedRequest.item.createdAt)}</div>
+                    {selectedRequest.item.respondedAt ? <div>처리 시각 {formatDate(selectedRequest.item.respondedAt)}</div> : null}
+                  </div>
+
+                  {selectedRequest.item.message?.trim() ? (
+                    <div style={{ marginBottom: "12px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>지원 메시지</div>
+                      <div style={{ borderRadius: "16px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px", color: "#111827", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+                        {selectedRequest.item.message}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedRequest.item.portfolioUrl?.trim() ? (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>포트폴리오 또는 GitHub</div>
+                      <a
+                        href={selectedRequest.item.portfolioUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "#2563eb", fontWeight: 800, wordBreak: "break-all" }}
+                      >
+                        {selectedRequest.item.portfolioUrl}
+                      </a>
+                    </div>
+                  ) : null}
+
+                  {selectedRequest.ownerView && selectedRequest.item.status === "pending" ? (
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        onClick={() => updateJoinRequestStatus(selectedRequest.item, "rejected")}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: "1px solid #d1d5db",
+                          background: "#ffffff",
+                          color: "#374151",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        거절
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateJoinRequestStatus(selectedRequest.item, "accepted")}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: "none",
+                          background: "#2563eb",
+                          color: "#ffffff",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        수락
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
+          </div>
+        </>
       ) : null}
 
       {selectedMessage ? (
@@ -507,7 +788,7 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
               <div>
-                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>MESSAGE</div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>쪽지 상세</div>
                 <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{selectedMessage.title}</div>
               </div>
               <button
@@ -530,8 +811,8 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
 
             <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
               <div>팀 {teamsByCode[selectedMessage.teamCode] || selectedMessage.teamCode}</div>
-              <div>From {selectedMessage.senderNickname}</div>
-              <div>To {selectedMessage.receiverNickname}</div>
+              <div>보낸 사람 {selectedMessage.senderNickname}</div>
+              <div>받는 사람 {selectedMessage.receiverNickname}</div>
               <div>생성 시각 {formatDate(selectedMessage.createdAt)}</div>
             </div>
 
