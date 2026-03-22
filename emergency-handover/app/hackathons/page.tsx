@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import StatePanel from "../../components/ui/StatePanel";
 import hackathonsData from "../../data/public_hackathons.json";
 
 type Hackathon = {
@@ -12,9 +13,11 @@ type Hackathon = {
   thumbnailUrl: string;
   period: {
     timezone: string;
+    startAt: string;
     submissionDeadlineAt: string;
     endAt: string;
   };
+  participantCount: number;
 };
 
 function formatDate(dateString: string) {
@@ -33,21 +36,12 @@ function getStatusLabel(status: Hackathon["status"]) {
 
 function getStatusStyle(status: Hackathon["status"]) {
   if (status === "ongoing") {
-    return {
-      backgroundColor: "#e8f7ea",
-      color: "#1f7a35",
-    };
+    return { backgroundColor: "#e8f7ea", color: "#1f7a35" };
   }
   if (status === "upcoming") {
-    return {
-      backgroundColor: "#eaf2ff",
-      color: "#2457c5",
-    };
+    return { backgroundColor: "#eaf2ff", color: "#2457c5" };
   }
-  return {
-    backgroundColor: "#f3f4f6",
-    color: "#4b5563",
-  };
+  return { backgroundColor: "#f3f4f6", color: "#4b5563" };
 }
 
 function sortHackathons(items: Hackathon[], sort: string) {
@@ -77,7 +71,8 @@ function sortHackathons(items: Hackathon[], sort: string) {
 }
 
 export default function HackathonsPage() {
-  const hackathons = hackathonsData as Hackathon[];
+  const hackathons = Array.isArray(hackathonsData) ? (hackathonsData as Hackathon[]) : [];
+  const hasDataError = !Array.isArray(hackathonsData);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -162,7 +157,7 @@ export default function HackathonsPage() {
             fontSize: "16px",
           }}
         >
-          진행중, 예정, 종료된 해커톤을 한눈에 확인하고 상태와 태그 기준으로 빠르게 찾아보세요.
+          진행중, 예정, 종료 상태의 해커톤을 확인하고 상태와 태그 기준으로 빠르게 찾아보세요.
         </p>
       </section>
 
@@ -321,13 +316,7 @@ export default function HackathonsPage() {
             alignItems: "center",
           }}
         >
-          <p
-            style={{
-              margin: 0,
-              color: "#6b7280",
-              fontSize: "14px",
-            }}
-          >
+          <p style={{ margin: 0, color: "#6b7280", fontSize: "14px" }}>
             총 <strong style={{ color: "#111827" }}>{filteredHackathons.length}</strong>개의 해커톤이 검색되었습니다.
           </p>
 
@@ -353,44 +342,18 @@ export default function HackathonsPage() {
         </div>
       </section>
 
-      {filteredHackathons.length === 0 ? (
-        <section
-          style={{
-            background: "#ffffff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "24px",
-            padding: "48px 24px",
-            textAlign: "center",
-            boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "42px",
-              marginBottom: "12px",
-            }}
-          >
-            검색
-          </div>
-          <h2
-            style={{
-              margin: "0 0 10px",
-              fontSize: "24px",
-              fontWeight: 900,
-            }}
-          >
-            검색 결과가 없습니다
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              color: "#6b7280",
-              lineHeight: 1.7,
-            }}
-          >
-            검색어 또는 필터 조건을 바꿔서 다시 확인해 주세요.
-          </p>
-        </section>
+      {hasDataError ? (
+        <StatePanel
+          kind="error"
+          title="데이터를 불러오는 중 문제가 발생했습니다"
+          description="해커톤 목록 데이터를 다시 확인해 주세요."
+        />
+      ) : filteredHackathons.length === 0 ? (
+        <StatePanel
+          kind="empty"
+          title="검색 결과가 없습니다"
+          description="검색어나 필터 조건을 바꿔서 다시 확인해 주세요."
+        />
       ) : (
         <section
           style={{
@@ -489,60 +452,35 @@ export default function HackathonsPage() {
                     ))}
                   </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: "8px",
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "#6b7280",
-                        fontSize: "14px",
-                      }}
-                    >
-                      제출 마감: {formatDate(hackathon.period.submissionDeadlineAt)}
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    <p style={{ margin: 0, color: "#6b7280", fontSize: "14px" }}>
+                      시작일 {formatDate(hackathon.period.startAt)}
                     </p>
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "#6b7280",
-                        fontSize: "14px",
-                      }}
-                    >
-                      종료일: {formatDate(hackathon.period.endAt)}
+                    <p style={{ margin: 0, color: "#6b7280", fontSize: "14px" }}>
+                      종료일 {formatDate(hackathon.period.endAt)}
+                    </p>
+                    <p style={{ margin: 0, color: "#6b7280", fontSize: "14px" }}>
+                      참가자 수 {hackathon.participantCount}
                     </p>
                   </div>
                 </div>
 
                 <div
                   style={{
-                    marginTop: "22px",
+                    marginTop: "18px",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
                     gap: "12px",
+                    flexWrap: "wrap",
                   }}
                 >
-                  <span
-                    style={{
-                      color: "#6b7280",
-                      fontSize: "14px",
-                    }}
-                  >
-                    상세 페이지로 이동
-                  </span>
-
-                  <span
-                    style={{
-                      color: "#2563eb",
-                      fontWeight: 800,
-                      fontSize: "15px",
-                    }}
-                  >
-                    자세히 보기
-                  </span>
+                  <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                    제출 마감 {formatDate(hackathon.period.submissionDeadlineAt)}
+                  </div>
+                  <div style={{ color: "#2563eb", fontWeight: 800, fontSize: "14px" }}>
+                    상세 보기
+                  </div>
                 </div>
               </article>
             </Link>

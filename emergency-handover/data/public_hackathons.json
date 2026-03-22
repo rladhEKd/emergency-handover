@@ -1,19 +1,17 @@
 [
   {
     "slug": "aimers-8-model-lite",
-    "title": "Aimers 8기 : 모델 경량화 온라인 해커톤",
+    "title": "Aimers 8 모델 경량화 해커톤",
     "status": "ended",
-    "tags": [
-      "LLM",
-      "Compression",
-      "vLLM"
-    ],
+    "tags": ["LLM", "Compression", "vLLM"],
     "thumbnailUrl": "https://example.com/public/img/aimers8.png",
     "period": {
       "timezone": "Asia/Seoul",
+      "startAt": "2026-02-10T10:00:00+09:00",
       "submissionDeadlineAt": "2026-02-25T10:00:00+09:00",
       "endAt": "2026-02-26T10:00:00+09:00"
     },
+    "participantCount": 128,
     "links": {
       "detail": "/hackathons/aimers-8-model-lite",
       "rules": "https://example.com/public/rules/aimers8",
@@ -22,19 +20,17 @@
   },
   {
     "slug": "monthly-vibe-coding-2026-02",
-    "title": "월간 해커톤 : 바이브 코딩 개선 AI 아이디어 공모전 (2026.02)",
+    "title": "월간 바이브 코딩 AI 아이디어 공모전 2026.02",
     "status": "ongoing",
-    "tags": [
-      "Idea",
-      "GenAI",
-      "Workflow"
-    ],
+    "tags": ["Idea", "GenAI", "Workflow"],
     "thumbnailUrl": "https://example.com/public/img/vibe202602.png",
     "period": {
       "timezone": "Asia/Seoul",
+      "startAt": "2026-02-24T10:00:00+09:00",
       "submissionDeadlineAt": "2026-03-03T10:00:00+09:00",
       "endAt": "2026-03-09T10:00:00+09:00"
     },
+    "participantCount": 94,
     "links": {
       "detail": "/hackathons/monthly-vibe-coding-2026-02",
       "rules": "https://example.com/public/rules/vibe202602",
@@ -43,20 +39,17 @@
   },
   {
     "slug": "daker-handover-2026-03",
-    "title": "긴급 인수인계 해커톤: 명세서만 보고 구현하라",
+    "title": "긴급 인수인계 해커톤 구현 과제",
     "status": "upcoming",
-    "tags": [
-      "VibeCoding",
-      "Web",
-      "Vercel",
-      "Handover"
-    ],
+    "tags": ["VibeCoding", "Web", "Vercel", "Handover"],
     "thumbnailUrl": "https://example.com/public/img/daker-handover-202603.png",
     "period": {
       "timezone": "Asia/Seoul",
+      "startAt": "2026-03-20T10:00:00+09:00",
       "submissionDeadlineAt": "2026-03-30T10:00:00+09:00",
       "endAt": "2026-04-27T10:00:00+09:00"
     },
+    "participantCount": 56,
     "links": {
       "detail": "/hackathons/daker-handover-2026-03",
       "rules": "https://example.com/public/rules/daker-handover-202603",

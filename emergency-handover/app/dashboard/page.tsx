@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import StatePanel from "../../components/ui/StatePanel";
 import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../../lib/local-auth";
 
 type Team = {
@@ -234,24 +235,14 @@ function ToggleCard({
 }
 
 function EmptyState({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        borderRadius: "18px",
-        background: "#f8fafc",
-        border: "1px solid #e5e7eb",
-        padding: "18px",
-        color: "#6b7280",
-      }}
-    >
-      {text}
-    </div>
-  );
+  return <StatePanel kind="empty" compact title={text} />;
 }
 
 export default function DashboardPage() {
   const [nickname, setNickname] = useState("");
   const [userId, setUserId] = useState("");
+  const [dashboardReady, setDashboardReady] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
   const [summary, setSummary] = useState<Summary>({
     myTeams: 0,
     sentRequests: 0,
@@ -277,66 +268,74 @@ export default function DashboardPage() {
 
   useEffect(() => {
     function syncDashboard() {
-      const session = getCurrentSession();
-      const nextUserId = session?.userId ?? "";
-      setNickname(session?.nickname ?? "");
-      setUserId(nextUserId);
+      try {
+        setDashboardError("");
+        const session = getCurrentSession();
+        const nextUserId = session?.userId ?? "";
+        setNickname(session?.nickname ?? "");
+        setUserId(nextUserId);
 
-      if (!nextUserId) {
+        if (!nextUserId) {
+          setSummary({
+            myTeams: 0,
+            sentRequests: 0,
+            receivedRequests: 0,
+            sentMessages: 0,
+            savedSubmissions: 0,
+          });
+          setLists({
+            myTeams: [],
+            sentRequests: [],
+            receivedRequests: [],
+            sentMessages: [],
+            savedSubmissions: [],
+          });
+          setTeamsByCode({});
+          setDashboardReady(true);
+          return;
+        }
+
+        const teams = readStoredTeams();
+        const nextTeamsByCode = teams.reduce<Record<string, string>>((acc, team) => {
+          acc[team.teamCode] = team.name;
+          return acc;
+        }, {});
+        const teamOwners = getTeamOwners();
+        const myTeams = teams.filter((team) => teamOwners[team.teamCode] === nextUserId);
+        const myTeamCodes = myTeams.map((team) => team.teamCode);
+        const joinRequests = readAllJoinRequests();
+        const messages = readStoredMessages();
+        const sentRequests = joinRequests
+          .filter((request) => request.requesterId === nextUserId)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const receivedRequests = joinRequests
+          .filter((request) => myTeamCodes.includes(request.teamCode))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const sentMessages = messages
+          .filter((message) => message.senderUserId === nextUserId)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const savedSubmissions = readSavedSubmissionsForUser(nextUserId);
+
+        setTeamsByCode(nextTeamsByCode);
         setSummary({
-          myTeams: 0,
-          sentRequests: 0,
-          receivedRequests: 0,
-          sentMessages: 0,
-          savedSubmissions: 0,
+          myTeams: myTeams.length,
+          sentRequests: sentRequests.length,
+          receivedRequests: receivedRequests.length,
+          sentMessages: sentMessages.length,
+          savedSubmissions: savedSubmissions.length,
         });
         setLists({
-          myTeams: [],
-          sentRequests: [],
-          receivedRequests: [],
-          sentMessages: [],
-          savedSubmissions: [],
+          myTeams,
+          sentRequests,
+          receivedRequests,
+          sentMessages,
+          savedSubmissions,
         });
-        setTeamsByCode({});
-        return;
+        setDashboardReady(true);
+      } catch {
+        setDashboardError("대시보드 데이터를 불러오는 중 문제가 발생했습니다.");
+        setDashboardReady(true);
       }
-
-      const teams = readStoredTeams();
-      const nextTeamsByCode = teams.reduce<Record<string, string>>((acc, team) => {
-        acc[team.teamCode] = team.name;
-        return acc;
-      }, {});
-      const teamOwners = getTeamOwners();
-      const myTeams = teams.filter((team) => teamOwners[team.teamCode] === nextUserId);
-      const myTeamCodes = myTeams.map((team) => team.teamCode);
-      const joinRequests = readAllJoinRequests();
-      const messages = readStoredMessages();
-      const sentRequests = joinRequests
-        .filter((request) => request.requesterId === nextUserId)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      const receivedRequests = joinRequests
-        .filter((request) => myTeamCodes.includes(request.teamCode))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      const sentMessages = messages
-        .filter((message) => message.senderUserId === nextUserId)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      const savedSubmissions = readSavedSubmissionsForUser(nextUserId);
-
-      setTeamsByCode(nextTeamsByCode);
-      setSummary({
-        myTeams: myTeams.length,
-        sentRequests: sentRequests.length,
-        receivedRequests: receivedRequests.length,
-        sentMessages: sentMessages.length,
-        savedSubmissions: savedSubmissions.length,
-      });
-      setLists({
-        myTeams,
-        sentRequests,
-        receivedRequests,
-        sentMessages,
-        savedSubmissions,
-      });
     }
 
     syncDashboard();
@@ -417,6 +416,19 @@ export default function DashboardPage() {
         </p>
       </section>
 
+      {!dashboardReady ? (
+        <StatePanel
+          kind="loading"
+          title="대시보드 정보를 불러오는 중입니다"
+          description="잠시만 기다려 주세요."
+        />
+      ) : dashboardError ? (
+        <StatePanel
+          kind="error"
+          title={dashboardError}
+          description="다시 시도해 주세요."
+        />
+      ) : (
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
         <ToggleCard label="내 팀" value={summary.myTeams} open={openPanels.myTeams} onToggle={() => togglePanel("myTeams")}>
           {lists.myTeams.length > 0 ? (
@@ -492,7 +504,7 @@ export default function DashboardPage() {
                     </div>
                     <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "12px" }}>전송 완료</span>
                   </div>
-                  <div style={{ color: "#374151", lineHeight: 1.7, marginBottom: "8px" }}>{message.content}</div>
+                  <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>본문은 Message Hub에서 확인할 수 있습니다.</div>
                   <div style={{ color: "#6b7280", fontSize: "14px" }}>생성일 {formatDate(message.createdAt)}</div>
                 </article>
               ))}
@@ -522,6 +534,7 @@ export default function DashboardPage() {
           )}
         </ToggleCard>
       </section>
+      )}
     </main>
   );
 }

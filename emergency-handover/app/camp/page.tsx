@@ -3,6 +3,7 @@
 import Link from "next/link";
 import initialTeams from "../../data/public_teams.json";
 import { useEffect, useMemo, useState } from "react";
+import StatePanel from "../../components/ui/StatePanel";
 import {
   AUTH_CHANGED_EVENT,
   getCurrentSession,
@@ -87,11 +88,13 @@ function resolveMessageReceiver(teamCode: string, teamOwners: Record<string, str
 
 export default function CampPage() {
   const [teams, setTeams] = useState<Team[]>([]);
+  const [teamsReady, setTeamsReady] = useState(false);
+  const [teamsError, setTeamsError] = useState("");
   const [hackathonFilter, setHackathonFilter] = useState("");
   const [openOnly, setOpenOnly] = useState(false);
 
   const [name, setName] = useState("");
-  const [hackathonSlug, setHackathonSlug] = useState("daker-handover-2026-03");
+  const [hackathonSlug, setHackathonSlug] = useState("");
   const [memberCount, setMemberCount] = useState(1);
   const [lookingFor, setLookingFor] = useState("");
   const [intro, setIntro] = useState("");
@@ -121,7 +124,7 @@ export default function CampPage() {
   function resetForm() {
     setEditingTeamCode("");
     setName("");
-    setHackathonSlug("daker-handover-2026-03");
+    setHackathonSlug("");
     setMemberCount(1);
     setLookingFor("");
     setIntro("");
@@ -144,6 +147,7 @@ export default function CampPage() {
         mergedTeams = parsed;
       } catch {
         mergedTeams = initialTeams as Team[];
+        setTeamsError("팀 목록을 불러오는 중 문제가 발생했습니다.");
       }
     } else {
       mergedTeams = initialTeams as Team[];
@@ -158,7 +162,10 @@ export default function CampPage() {
     const hackathonParam = params.get("hackathon");
     if (hackathonParam) {
       window.requestAnimationFrame(() => setHackathonFilter(hackathonParam));
+      window.requestAnimationFrame(() => setHackathonSlug(hackathonParam));
     }
+
+    window.requestAnimationFrame(() => setTeamsReady(true));
 
     function syncOwners() {
       setTeamOwners(getTeamOwners());
@@ -188,7 +195,7 @@ export default function CampPage() {
   }, [teams, hackathonFilter, openOnly]);
 
   const uniqueHackathons = useMemo(() => {
-    const slugs = [...new Set(teams.map((team) => team.hackathonSlug))];
+    const slugs = [...new Set(teams.map((team) => team.hackathonSlug).filter(Boolean))];
     return slugs;
   }, [teams]);
 
@@ -217,7 +224,7 @@ export default function CampPage() {
     const nextTeamCode = editingTeamCode || makeTeamCode();
     const nextTeam: Team = {
       teamCode: nextTeamCode,
-      hackathonSlug,
+      hackathonSlug: hackathonSlug.trim(),
       name: name.trim(),
       isOpen,
       memberCount: Number(memberCount),
@@ -527,6 +534,7 @@ export default function CampPage() {
                   backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
                 }}
               >
+                <option value="">연결 안 함</option>
                 <option value="aimers-8-model-lite">Aimers 8</option>
                 <option value="monthly-vibe-coding-2026-02">Monthly Vibe Coding 2026.02</option>
                 <option value="daker-handover-2026-03">Daker Handover 2026.03</option>
@@ -699,7 +707,21 @@ export default function CampPage() {
         </div>
 
         <div style={{ display: "grid", gap: "16px" }}>
-          {filteredTeams.length > 0 ? (
+          {!teamsReady ? (
+            <StatePanel
+              kind="loading"
+              compact
+              title="팀 목록을 불러오는 중입니다"
+              description="잠시만 기다려 주세요."
+            />
+          ) : teamsError ? (
+            <StatePanel
+              kind="error"
+              compact
+              title={teamsError}
+              description="다시 시도해 주세요."
+            />
+          ) : filteredTeams.length > 0 ? (
             filteredTeams.map((team) => {
               const canManage = isOwner(team.teamCode);
 
@@ -727,7 +749,7 @@ export default function CampPage() {
                         {team.name}
                       </h3>
                       <p style={{ color: "#555", marginBottom: "6px" }}>
-                        {getHackathonTitle(team.hackathonSlug)}
+                        {team.hackathonSlug ? getHackathonTitle(team.hackathonSlug) : "연결된 해커톤 없음"}
                       </p>
                       {canManage ? (
                         <p style={{ color: "#2563eb", fontWeight: 700, margin: 0 }}>내 모집글</p>
@@ -849,7 +871,12 @@ export default function CampPage() {
               );
             })
           ) : (
-            <p>조건에 맞는 팀이 없습니다.</p>
+            <StatePanel
+              kind="empty"
+              compact
+              title="조건에 맞는 팀이 없습니다"
+              description="필터를 변경하거나 새 팀 모집글을 등록해 보세요."
+            />
           )}
         </div>
       </section>

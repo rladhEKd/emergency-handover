@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import StatePanel from "../../../components/ui/StatePanel";
 import leaderboardData from "../../../data/public_leaderboard.json";
 import initialTeams from "../../../data/public_teams.json";
 import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../../../lib/local-auth";
@@ -217,6 +218,10 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [teams, setTeams] = useState<Team[]>(initialTeams as Team[]);
+  const [storageReady, setStorageReady] = useState(false);
+  const [teamsError, setTeamsError] = useState("");
+  const [joinRequestsError, setJoinRequestsError] = useState("");
+  const [submissionLoadError, setSubmissionLoadError] = useState("");
   const statusStyle = getStatusStyle(hackathon.status);
 
   useEffect(() => {
@@ -238,12 +243,14 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       }
     } catch {
       setTeams(fallbackTeams);
+      setTeamsError("팀 정보를 불러오는 중 문제가 발생했습니다.");
     }
 
     syncAuthState();
     setTeamOwners(getTeamOwners());
     window.addEventListener(AUTH_CHANGED_EVENT, syncAuthState);
     window.addEventListener("storage", syncAuthState);
+    setStorageReady(true);
 
     return () => {
       window.removeEventListener(AUTH_CHANGED_EVENT, syncAuthState);
@@ -269,6 +276,20 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
   const openTeams = useMemo(() => hackathonTeams.filter((team) => team.isOpen), [hackathonTeams]);
   const leaderboardPreview = leaderboard?.entries.slice(0, 3) ?? [];
+  const unsubmittedTeams = useMemo(() => {
+    const rankedTeamNames = new Set(
+      (leaderboard?.entries ?? []).map((entry) => entry.teamName.trim().toLowerCase())
+    );
+    const seenTeamNames = new Set<string>();
+
+    return hackathonTeams.filter((team) => {
+      const normalizedName = team.name.trim().toLowerCase();
+      if (!normalizedName) return false;
+      if (seenTeamNames.has(normalizedName)) return false;
+      seenTeamNames.add(normalizedName);
+      return !rankedTeamNames.has(normalizedName);
+    });
+  }, [hackathonTeams, leaderboard]);
   const maxTeamSize = details?.sections.overview?.teamPolicy?.maxTeamSize ?? "-";
   const allowSolo = details?.sections.overview?.teamPolicy?.allowSolo;
   const quickLinks = details?.sections.info?.links;
@@ -291,6 +312,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
   useEffect(() => {
     try {
+      setJoinRequestsError("");
       const stored = window.localStorage.getItem(getTeamJoinRequestsStorageKey(hackathon.slug));
       if (!stored) {
         setTeamJoinRequests([]);
@@ -301,6 +323,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       setTeamJoinRequests(Array.isArray(parsed) ? parsed : []);
     } catch {
       setTeamJoinRequests([]);
+      setJoinRequestsError("참여 요청 정보를 불러오는 중 문제가 발생했습니다.");
     }
   }, [hackathon.slug]);
 
@@ -308,6 +331,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     const initialValues = makeInitialSubmissionValues(submissionItems);
     setSubmissionValues(initialValues);
     setSubmissionNotes("");
+    setSubmissionLoadError("");
     setSubmitError("");
     setSubmitSuccess("");
 
@@ -327,6 +351,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       setSubmissionHistory(Array.isArray(parsed) ? parsed : []);
     } catch {
       setSubmissionHistory([]);
+      setSubmissionLoadError("제출 이력을 불러오는 중 문제가 발생했습니다.");
     }
   }, [currentUserId, hackathon.slug, submissionItems]);
 
@@ -653,7 +678,21 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
             <StatCard label="Open teams" value={openTeams.length} tone="blue" />
           </div>
 
-          {openTeams.length > 0 ? (
+          {!storageReady ? (
+            <StatePanel
+              kind="loading"
+              compact
+              title="팀 정보를 불러오는 중입니다"
+              description="잠시만 기다려 주세요."
+            />
+          ) : teamsError ? (
+            <StatePanel
+              kind="error"
+              compact
+              title={teamsError}
+              description="다시 시도해 주세요."
+            />
+          ) : openTeams.length > 0 ? (
             <div style={{ display: "grid", gap: "12px", marginBottom: "18px" }}>
               {openTeams.slice(0, 3).map((team) => {
                 const isOwner = isTeamOwner(team.teamCode);
@@ -730,9 +769,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                           </div>
                         ))
                       ) : (
-                        <div style={{ borderRadius: "14px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px", color: "#6b7280" }}>
-                          No join requests yet.
-                        </div>
+                        <StatePanel
+                          kind={joinRequestsError ? "error" : "empty"}
+                          compact
+                          title={joinRequestsError || "아직 받은 요청이 없습니다"}
+                          description={joinRequestsError ? "다시 시도해 주세요." : undefined}
+                        />
                       )}
                     </div>
                   ) : myJoinRequest?.status === "accepted" ? (
@@ -773,32 +815,55 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               })}
             </div>
           ) : (
-            <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "18px", marginBottom: "18px", color: "#6b7280" }}>
-              There are no open team posts for this hackathon yet.
-            </div>
+            <StatePanel
+              kind="empty"
+              compact
+              title="아직 모집 중인 팀이 없습니다"
+              description="팀 만들기 버튼으로 첫 팀 모집글을 등록해 보세요."
+            />
           )}
 
           {details?.sections.teams?.listUrl ? (
-            <button
-              type="button"
-              onClick={() => handleTeamActionStart({ type: "navigate", url: details.sections.teams!.listUrl! })}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "12px 16px",
-                borderRadius: "14px",
-                background: "#2563eb",
-                color: "#ffffff",
-                fontWeight: 800,
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Open team board
-            </button>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => handleTeamActionStart({ type: "navigate", url: `/camp?hackathon=${hackathon.slug}` })}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "12px 16px",
+                  borderRadius: "14px",
+                  background: "#2563eb",
+                  color: "#ffffff",
+                  fontWeight: 800,
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                팀 만들기
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTeamActionStart({ type: "navigate", url: details.sections.teams!.listUrl! })}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "12px 16px",
+                  borderRadius: "14px",
+                  background: "#ffffff",
+                  color: "#374151",
+                  fontWeight: 800,
+                  border: "1px solid #d1d5db",
+                  cursor: "pointer",
+                }}
+              >
+                팀원 모집 보기
+              </button>
+            </div>
           ) : (
-            <p style={{ margin: 0, color: "#6b7280" }}>연결된 팀원 모집 게시판이 없습니다.</p>
+            <StatePanel kind="empty" compact title="연결된 팀원 모집 게시판이 없습니다" />
           )}
         </SectionCard>
       )}
@@ -814,7 +879,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               ))}
             </div>
           ) : (
-            <p style={{ margin: "0 0 14px", color: "#6b7280" }}>Submission guide is not available.</p>
+            <StatePanel
+              kind="empty"
+              compact
+              title="제출 가이드가 없습니다"
+              description="이 해커톤의 제출 안내가 준비되면 여기에 표시됩니다."
+            />
           )}
 
           {details?.sections.submit?.allowedArtifactTypes && details.sections.submit.allowedArtifactTypes.length > 0 && (
@@ -842,7 +912,14 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
             </div>
           )}
 
-          {submissionItems.length > 0 ? (
+          {!storageReady ? (
+            <StatePanel
+              kind="loading"
+              compact
+              title="제출 정보를 불러오는 중입니다"
+              description="잠시만 기다려 주세요."
+            />
+          ) : submissionItems.length > 0 ? (
             <>
               {!currentUserId ? (
                 <div
@@ -1035,6 +1112,13 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                   >
                     저장한 Submit을 보려면 Login이 필요합니다.
                   </div>
+                ) : submissionLoadError ? (
+                  <StatePanel
+                    kind="error"
+                    compact
+                    title={submissionLoadError}
+                    description="다시 시도해 주세요."
+                  />
                 ) : submissionHistory.length > 0 ? (
                   <div style={{ display: "grid", gap: "12px" }}>
                     {submissionHistory.map((record) => (
@@ -1116,33 +1200,17 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     ))}
                   </div>
                 ) : (
-                  <div
-                    style={{
-                      borderRadius: "18px",
-                      background: "#f8fafc",
-                      border: "1px solid #e5e7eb",
-                      padding: "18px",
-                      color: "#6b7280",
-                    }}
-                  >
-                    아직 저장한 Submit이 없습니다.
-                  </div>
+                  <StatePanel kind="empty" compact title="아직 저장한 Submit이 없습니다" />
                 )}
               </div>
             </>
           ) : (
-            <div
-              style={{
-                marginTop: "18px",
-                borderRadius: "18px",
-                background: "#f8fafc",
-                border: "1px solid #e5e7eb",
-                padding: "18px",
-                color: "#6b7280",
-              }}
-            >
-              이 해커톤에는 Submit 항목이 설정되어 있지 않습니다.
-            </div>
+            <StatePanel
+              kind="empty"
+              compact
+              title="제출 항목이 없습니다"
+              description="이 해커톤의 Submit 설정이 아직 준비되지 않았습니다."
+            />
           )}
         </SectionCard>
       )}
@@ -1225,8 +1293,18 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           <p style={{ margin: "0 0 16px", color: "#374151", lineHeight: 1.8 }}>
             {details?.sections.leaderboard?.note ?? "리더보드 안내가 아직 준비되지 않았습니다."}
           </p>
+          <p style={{ margin: "0 0 18px", color: "#6b7280", fontSize: "14px", lineHeight: 1.7 }}>
+            리더보드에 없는 팀은 현재 미제출로 표시됩니다.
+          </p>
 
-          {leaderboardPreview.length > 0 ? (
+          {!storageReady ? (
+            <StatePanel
+              kind="loading"
+              compact
+              title="리더보드 정보를 불러오는 중입니다"
+              description="잠시만 기다려 주세요."
+            />
+          ) : leaderboardPreview.length > 0 ? (
             <>
               <div style={{ display: "grid", gap: "12px", marginBottom: "18px" }}>
                 {leaderboardPreview.map((entry) => (
@@ -1256,10 +1334,72 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               </div>
             </>
           ) : (
-            <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "18px", color: "#6b7280" }}>
-              이 해커톤의 공개 리더보드 데이터가 아직 없습니다.
-            </div>
+            <StatePanel
+              kind="empty"
+              compact
+              title="공개 리더보드 데이터가 없습니다"
+              description="이 해커톤의 순위 데이터가 준비되면 여기에 표시됩니다."
+            />
           )}
+
+          <div style={{ marginTop: "22px" }}>
+            <h3 style={{ margin: "0 0 12px", fontSize: "20px", fontWeight: 900 }}>미제출 팀</h3>
+
+            {hackathonTeams.length === 0 ? (
+              <StatePanel
+                kind="empty"
+                compact
+                title="현재 이 해커톤에 연결된 팀이 없습니다"
+              />
+            ) : unsubmittedTeams.length > 0 ? (
+              <div style={{ display: "grid", gap: "12px" }}>
+                {unsubmittedTeams.map((team) => (
+                  <div
+                    key={team.teamCode}
+                    style={{
+                      borderRadius: "18px",
+                      background: "#ffffff",
+                      border: "1px solid #e5e7eb",
+                      padding: "16px 18px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "12px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800, color: "#111827", marginBottom: "4px" }}>
+                        {team.name}
+                      </div>
+                      <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                        등록일 {formatDate(team.createdAt)}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "8px 12px",
+                        borderRadius: "999px",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        fontWeight: 800,
+                        fontSize: "13px",
+                      }}
+                    >
+                      미제출
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <StatePanel
+                kind="empty"
+                compact
+                title="현재 미제출 팀이 없습니다"
+              />
+            )}
+          </div>
         </SectionCard>
       )}
     </main>

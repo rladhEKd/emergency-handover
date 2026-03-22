@@ -3,6 +3,7 @@
 import initialTeams from "../data/public_teams.json";
 import { useEffect, useMemo, useState } from "react";
 import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../lib/local-auth";
+import StatePanel from "./ui/StatePanel";
 
 type Team = {
   teamCode: string;
@@ -153,6 +154,9 @@ export default function FloatingMessageHub() {
   const [userId, setUserId] = useState("");
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("receivedRequests");
+  const [selectedMessage, setSelectedMessage] = useState<TeamMessage | null>(null);
+  const [hubReady, setHubReady] = useState(false);
+  const [hubError, setHubError] = useState("");
   const [teamsByCode, setTeamsByCode] = useState<Record<string, string>>({});
   const [receivedRequests, setReceivedRequests] = useState<TeamJoinRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<TeamJoinRequest[]>([]);
@@ -161,54 +165,63 @@ export default function FloatingMessageHub() {
 
   useEffect(() => {
     function syncHub() {
-      const session = getCurrentSession();
-      const nextUserId = normalizeUserId(session?.userId);
-      setNickname(session?.nickname ?? "");
-      setUserId(nextUserId);
+      try {
+        setHubError("");
+        const session = getCurrentSession();
+        const nextUserId = normalizeUserId(session?.userId);
+        setNickname(session?.nickname ?? "");
+        setUserId(nextUserId);
 
-      if (!nextUserId) {
-        setTeamsByCode({});
-        setReceivedRequests([]);
-        setSentRequests([]);
-        setReceivedMessages([]);
-        setSentMessages([]);
-        setOpen(false);
-        return;
+        if (!nextUserId) {
+          setTeamsByCode({});
+          setReceivedRequests([]);
+          setSentRequests([]);
+          setReceivedMessages([]);
+          setSentMessages([]);
+          setOpen(false);
+          setSelectedMessage(null);
+          setHubReady(true);
+          return;
+        }
+
+        const teams = readTeams();
+        const teamsMap = teams.reduce<Record<string, string>>((acc, team) => {
+          acc[team.teamCode] = team.name;
+          return acc;
+        }, {});
+        const teamOwners = getTeamOwners();
+        const myTeamCodes = teams
+          .filter((team) => teamOwners[team.teamCode] === nextUserId)
+          .map((team) => team.teamCode);
+        const allRequests = readJoinRequests();
+        const allMessages = readMessages();
+
+        setTeamsByCode(teamsMap);
+        setReceivedRequests(
+          allRequests
+            .filter((request) => myTeamCodes.includes(request.teamCode))
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        );
+        setSentRequests(
+          allRequests
+            .filter((request) => request.requesterId === nextUserId)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        );
+        setReceivedMessages(
+          allMessages
+            .filter((message) => normalizeUserId(message.receiverUserId) === nextUserId)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        );
+        setSentMessages(
+          allMessages
+            .filter((message) => normalizeUserId(message.senderUserId) === nextUserId)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        );
+        setHubReady(true);
+      } catch {
+        setHubError("메시지 허브 데이터를 불러오는 중 문제가 발생했습니다.");
+        setHubReady(true);
       }
-
-      const teams = readTeams();
-      const teamsMap = teams.reduce<Record<string, string>>((acc, team) => {
-        acc[team.teamCode] = team.name;
-        return acc;
-      }, {});
-      const teamOwners = getTeamOwners();
-      const myTeamCodes = teams
-        .filter((team) => teamOwners[team.teamCode] === nextUserId)
-        .map((team) => team.teamCode);
-      const allRequests = readJoinRequests();
-      const allMessages = readMessages();
-
-      setTeamsByCode(teamsMap);
-      setReceivedRequests(
-        allRequests
-          .filter((request) => myTeamCodes.includes(request.teamCode))
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      );
-      setSentRequests(
-        allRequests
-          .filter((request) => request.requesterId === nextUserId)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      );
-      setReceivedMessages(
-        allMessages
-          .filter((message) => normalizeUserId(message.receiverUserId) === nextUserId)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      );
-      setSentMessages(
-        allMessages
-          .filter((message) => normalizeUserId(message.senderUserId) === nextUserId)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      );
     }
 
     syncHub();
@@ -244,14 +257,18 @@ export default function FloatingMessageHub() {
   }
 
 function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyText: string, showRequester: boolean) {
+    if (!hubReady) {
+      return <StatePanel kind="loading" compact title="목록을 불러오는 중입니다" description="잠시만 기다려 주세요." />;
+    }
+
+    if (hubError) {
+      return <StatePanel kind="error" compact title={hubError} description="다시 시도해 주세요." />;
+    }
+
     const entries = Object.entries(groups);
 
     if (entries.length === 0) {
-      return (
-        <div style={{ borderRadius: "16px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px", color: "#6b7280" }}>
-          {emptyText}
-        </div>
-      );
+      return <StatePanel kind="empty" compact title={emptyText} />;
     }
 
     return (
@@ -283,12 +300,16 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
   }
 
   function renderMessageList(items: TeamMessage[], emptyText: string, type: "received" | "sent") {
+    if (!hubReady) {
+      return <StatePanel kind="loading" compact title="목록을 불러오는 중입니다" description="잠시만 기다려 주세요." />;
+    }
+
+    if (hubError) {
+      return <StatePanel kind="error" compact title={hubError} description="다시 시도해 주세요." />;
+    }
+
     if (items.length === 0) {
-      return (
-        <div style={{ borderRadius: "16px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px", color: "#6b7280" }}>
-          {emptyText}
-        </div>
-      );
+      return <StatePanel kind="empty" compact title={emptyText} />;
     }
 
     return (
@@ -300,14 +321,29 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
                 <div style={{ fontWeight: 900, color: "#111827" }}>{item.title}</div>
                 <div style={{ color: "#6b7280", fontSize: "14px" }}>{teamsByCode[item.teamCode] || item.teamCode}</div>
               </div>
-              <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "12px" }}>
-                {type === "received" ? "받음" : "보냄"}
-              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedMessage(item)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "8px 12px",
+                  borderRadius: "10px",
+                  border: "1px solid #d1d5db",
+                  background: "#ffffff",
+                  color: "#374151",
+                  fontWeight: 800,
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                보기
+              </button>
             </div>
             <div style={{ color: "#374151", fontSize: "14px", marginBottom: "6px" }}>
-              {type === "received" ? `보낸 사람 ${item.senderNickname}` : `받는 사람 ${item.receiverNickname}`}
+              {type === "received" ? `From ${item.senderNickname}` : `To ${item.receiverNickname}`}
             </div>
-            <div style={{ color: "#374151", lineHeight: 1.6, marginBottom: "6px" }}>{item.content}</div>
             <div style={{ color: "#6b7280", fontSize: "13px" }}>생성일 {formatDate(item.createdAt)}</div>
           </div>
         ))}
@@ -436,6 +472,84 @@ function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyTex
             {activeTab === "sentMessages" ? renderMessageList(sentMessages, "아직 보낸 Message가 없습니다.", "sent") : null}
           </div>
         </div>
+      ) : null}
+
+      {selectedMessage ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close message detail"
+            onClick={() => setSelectedMessage(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              border: "none",
+              background: "rgba(15, 23, 42, 0.22)",
+              padding: 0,
+              margin: 0,
+              zIndex: 71,
+              cursor: "pointer",
+            }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              right: "20px",
+              bottom: "92px",
+              width: "min(420px, calc(100vw - 24px))",
+              borderRadius: "24px",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
+              zIndex: 72,
+              padding: "20px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>MESSAGE</div>
+                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{selectedMessage.title}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedMessage(null)}
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "999px",
+                  border: "1px solid #d1d5db",
+                  background: "#ffffff",
+                  color: "#374151",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                X
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
+              <div>팀 {teamsByCode[selectedMessage.teamCode] || selectedMessage.teamCode}</div>
+              <div>From {selectedMessage.senderNickname}</div>
+              <div>To {selectedMessage.receiverNickname}</div>
+              <div>생성 시각 {formatDate(selectedMessage.createdAt)}</div>
+            </div>
+
+            <div
+              style={{
+                borderRadius: "18px",
+                background: "#f8fafc",
+                border: "1px solid #e5e7eb",
+                padding: "16px",
+                color: "#111827",
+                lineHeight: 1.7,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {selectedMessage.content}
+            </div>
+          </div>
+        </>
       ) : null}
     </>
   );
