@@ -138,7 +138,7 @@ export default function HackathonsPage() {
             letterSpacing: "0.04em",
           }}
         >
-          HACKATHON DIRECTORY
+          해커톤 목록
         </p>
 
         <h1
@@ -150,7 +150,7 @@ export default function HackathonsPage() {
             letterSpacing: "-0.03em",
           }}
         >
-          해커톤 목록
+          해커톤 둘러보기
         </h1>
 
         <p
@@ -162,8 +162,7 @@ export default function HackathonsPage() {
             fontSize: "16px",
           }}
         >
-          진행중, 예정, 종료된 해커톤을 탐색하고 상태와 태그를 기준으로 빠르게
-          원하는 대회를 찾아보세요.
+          진행중, 예정, 종료된 해커톤을 한눈에 확인하고 상태와 태그 기준으로 빠르게 찾아보세요.
         </p>
       </section>
 
@@ -200,7 +199,7 @@ export default function HackathonsPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="해커톤명 또는 태그 검색"
+              placeholder="해커톤 이름 또는 태그 검색"
               style={{
                 width: "100%",
                 height: "48px",
@@ -306,7 +305,7 @@ export default function HackathonsPage() {
               }}
             >
               <option value="deadline-asc">마감 임박순</option>
-              <option value="deadline-desc">마감 늦은순</option>
+              <option value="deadline-desc">마감 여유순</option>
               <option value="title-asc">이름순</option>
             </select>
           </div>
@@ -329,8 +328,7 @@ export default function HackathonsPage() {
               fontSize: "14px",
             }}
           >
-            총 <strong style={{ color: "#111827" }}>{filteredHackathons.length}</strong>개의
-            해커톤이 검색되었습니다.
+            총 <strong style={{ color: "#111827" }}>{filteredHackathons.length}</strong>개의 해커톤이 검색되었습니다.
           </p>
 
           <button
@@ -372,7 +370,7 @@ export default function HackathonsPage() {
               marginBottom: "12px",
             }}
           >
-            🔍
+            검색
           </div>
           <h2
             style={{
@@ -390,7 +388,7 @@ export default function HackathonsPage() {
               lineHeight: 1.7,
             }}
           >
-            검색어 또는 필터 조건을 바꿔서 다시 확인해보세요.
+            검색어 또는 필터 조건을 바꿔서 다시 확인해 주세요.
           </p>
         </section>
       ) : (
@@ -504,7 +502,7 @@ export default function HackathonsPage() {
                         fontSize: "14px",
                       }}
                     >
-                      제출 마감 · {formatDate(hackathon.period.submissionDeadlineAt)}
+                      제출 마감: {formatDate(hackathon.period.submissionDeadlineAt)}
                     </p>
                     <p
                       style={{
@@ -513,7 +511,7 @@ export default function HackathonsPage() {
                         fontSize: "14px",
                       }}
                     >
-                      종료일 · {formatDate(hackathon.period.endAt)}
+                      종료일: {formatDate(hackathon.period.endAt)}
                     </p>
                   </div>
                 </div>
@@ -543,7 +541,7 @@ export default function HackathonsPage() {
                       fontSize: "15px",
                     }}
                   >
-                    자세히 보기 →
+                    자세히 보기
                   </span>
                 </div>
               </article>

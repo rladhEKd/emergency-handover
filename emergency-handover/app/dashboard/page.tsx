@@ -224,7 +224,7 @@ function ToggleCard({
             <div style={{ fontSize: "32px", fontWeight: 900, color: "#111827" }}>{value}</div>
           </div>
           <div style={{ fontSize: "14px", fontWeight: 800, color: open ? "#2563eb" : "#6b7280" }}>
-            {open ? "Hide" : "Show"}
+            {open ? "접기" : "보기"}
           </div>
         </div>
       </button>
@@ -373,7 +373,7 @@ export default function DashboardPage() {
           <div style={{ fontSize: "13px", fontWeight: 800, marginBottom: "14px", opacity: 0.9 }}>MY DASHBOARD</div>
           <h1 style={{ margin: "0 0 12px", fontSize: "38px", fontWeight: 900 }}>Dashboard</h1>
           <p style={{ margin: 0, maxWidth: "560px", lineHeight: 1.7, color: "rgba(255,255,255,0.9)" }}>
-            Login to view your activity summary.
+            활동 요약을 보려면 Login이 필요합니다.
           </p>
           <div style={{ marginTop: "18px" }}>
             <Link
@@ -390,7 +390,7 @@ export default function DashboardPage() {
                 textDecoration: "none",
               }}
             >
-              Open auth
+              Login 하러 가기
             </Link>
           </div>
         </section>
@@ -413,12 +413,12 @@ export default function DashboardPage() {
         <div style={{ fontSize: "13px", fontWeight: 800, marginBottom: "14px", opacity: 0.9 }}>MY DASHBOARD</div>
         <h1 style={{ margin: "0 0 12px", fontSize: "38px", fontWeight: 900 }}>Dashboard</h1>
         <p style={{ margin: 0, maxWidth: "560px", lineHeight: 1.7, color: "rgba(255,255,255,0.9)" }}>
-          Review your current activity summary, {nickname || "member"}.
+          현재 활동 요약을 확인해 보세요, {nickname || "member"}님.
         </p>
       </section>
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-        <ToggleCard label="My teams" value={summary.myTeams} open={openPanels.myTeams} onToggle={() => togglePanel("myTeams")}>
+        <ToggleCard label="내 팀" value={summary.myTeams} open={openPanels.myTeams} onToggle={() => togglePanel("myTeams")}>
           {lists.myTeams.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.myTeams.map((team) => (
@@ -429,11 +429,11 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <EmptyState text="No teams created yet." />
+            <EmptyState text="아직 만든 팀이 없습니다." />
           )}
         </ToggleCard>
 
-        <ToggleCard label="Sent join requests" value={summary.sentRequests} open={openPanels.sentRequests} onToggle={() => togglePanel("sentRequests")}>
+        <ToggleCard label="보낸 Request" value={summary.sentRequests} open={openPanels.sentRequests} onToggle={() => togglePanel("sentRequests")}>
           {lists.sentRequests.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.sentRequests.map((request) => {
@@ -445,17 +445,17 @@ export default function DashboardPage() {
                       <div style={{ fontWeight: 900, color: "#111827" }}>{teamsByCode[request.teamCode] || request.teamCode}</div>
                       <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
                     </div>
-                    <div style={{ color: "#6b7280", fontSize: "14px" }}>Created {formatDate(request.createdAt)}</div>
+                    <div style={{ color: "#6b7280", fontSize: "14px" }}>생성일 {formatDate(request.createdAt)}</div>
                   </article>
                 );
               })}
             </div>
           ) : (
-            <EmptyState text="No sent requests yet." />
+            <EmptyState text="아직 보낸 Request가 없습니다." />
           )}
         </ToggleCard>
 
-        <ToggleCard label="Received join requests" value={summary.receivedRequests} open={openPanels.receivedRequests} onToggle={() => togglePanel("receivedRequests")}>
+        <ToggleCard label="받은 Request" value={summary.receivedRequests} open={openPanels.receivedRequests} onToggle={() => togglePanel("receivedRequests")}>
           {lists.receivedRequests.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.receivedRequests.map((request) => {
@@ -470,17 +470,17 @@ export default function DashboardPage() {
                       </div>
                       <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
                     </div>
-                    <div style={{ color: "#6b7280", fontSize: "14px" }}>Created {formatDate(request.createdAt)}</div>
+                    <div style={{ color: "#6b7280", fontSize: "14px" }}>생성일 {formatDate(request.createdAt)}</div>
                   </article>
                 );
               })}
             </div>
           ) : (
-            <EmptyState text="No received requests yet." />
+            <EmptyState text="아직 받은 Request가 없습니다." />
           )}
         </ToggleCard>
 
-        <ToggleCard label="Sent messages" value={summary.sentMessages} open={openPanels.sentMessages} onToggle={() => togglePanel("sentMessages")}>
+        <ToggleCard label="보낸 Message" value={summary.sentMessages} open={openPanels.sentMessages} onToggle={() => togglePanel("sentMessages")}>
           {lists.sentMessages.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.sentMessages.map((message) => (
@@ -490,35 +490,35 @@ export default function DashboardPage() {
                       <div style={{ fontWeight: 900, color: "#111827" }}>{message.title}</div>
                       <div style={{ color: "#6b7280", fontSize: "14px" }}>{teamsByCode[message.teamCode] || message.teamCode}</div>
                     </div>
-                    <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "12px" }}>Sent</span>
+                    <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "12px" }}>전송 완료</span>
                   </div>
                   <div style={{ color: "#374151", lineHeight: 1.7, marginBottom: "8px" }}>{message.content}</div>
-                  <div style={{ color: "#6b7280", fontSize: "14px" }}>Created {formatDate(message.createdAt)}</div>
+                  <div style={{ color: "#6b7280", fontSize: "14px" }}>생성일 {formatDate(message.createdAt)}</div>
                 </article>
               ))}
             </div>
           ) : (
-            <EmptyState text="No sent messages yet." />
+            <EmptyState text="아직 보낸 Message가 없습니다." />
           )}
         </ToggleCard>
 
-        <ToggleCard label="Saved submissions" value={summary.savedSubmissions} open={openPanels.savedSubmissions} onToggle={() => togglePanel("savedSubmissions")}>
+        <ToggleCard label="저장한 Submit" value={summary.savedSubmissions} open={openPanels.savedSubmissions} onToggle={() => togglePanel("savedSubmissions")}>
           {lists.savedSubmissions.length > 0 ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {lists.savedSubmissions.map((item) => (
                 <article key={item.record.id} style={{ borderRadius: "18px", background: "#fbfcfe", border: "1px solid #edf0f5", padding: "16px" }}>
                   <div style={{ fontWeight: 900, color: "#111827", marginBottom: "6px" }}>{getHackathonTitle(item.record.hackathonSlug)}</div>
-                  <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>Saved {formatDate(item.record.submittedAt)}</div>
+                  <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>저장일 {formatDate(item.record.submittedAt)}</div>
                   {item.record.notes ? (
                     <div style={{ color: "#374151", lineHeight: 1.7 }}>{item.record.notes}</div>
                   ) : (
-                    <div style={{ color: "#6b7280", fontSize: "14px" }}>No notes</div>
+                    <div style={{ color: "#6b7280", fontSize: "14px" }}>메모 없음</div>
                   )}
                 </article>
               ))}
             </div>
           ) : (
-            <EmptyState text="No saved submissions yet." />
+            <EmptyState text="아직 저장한 Submit이 없습니다." />
           )}
         </ToggleCard>
       </section>

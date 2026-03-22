@@ -89,11 +89,11 @@ const TEAM_JOIN_REQUESTS_PREFIX = "team-join-requests-v1";
 function getStatusText(status: Hackathon["status"]) {
   switch (status) {
     case "ongoing":
-      return "Ongoing";
+      return "진행중";
     case "ended":
-      return "Ended";
+      return "종료";
     case "upcoming":
-      return "Upcoming";
+      return "예정";
     default:
       return status;
   }
@@ -159,8 +159,8 @@ function isValidUrl(value: string) {
 
 function getInputPlaceholder(format: string) {
   if (isUrlFormat(format)) return "https://example.com";
-  if (format === "text_or_url") return "Enter text or paste a URL";
-  return "Enter text";
+  if (format === "text_or_url") return "텍스트를 입력하거나 URL을 붙여 넣어 주세요";
+  return "내용을 입력해 주세요";
 }
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode; }) {
@@ -407,13 +407,13 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     e.preventDefault();
 
     if (!currentUserId) {
-      setSubmitError("Login is required to save a submission.");
+      setSubmitError("Submit을 저장하려면 Login이 필요합니다.");
       setSubmitSuccess("");
       return;
     }
 
     if (submissionItems.length === 0) {
-      setSubmitError("No submission items are configured for this hackathon.");
+      setSubmitError("이 해커톤에는 Submit 항목이 설정되어 있지 않습니다.");
       setSubmitSuccess("");
       return;
     }
@@ -423,13 +423,13 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       const value = rawValue.trim();
 
       if (!value) {
-        setSubmitError(`Please fill in ${item.title}.`);
+        setSubmitError(`${item.title} 항목을 입력해 주세요.`);
         setSubmitSuccess("");
         return;
       }
 
       if (isUrlFormat(item.format) && !isValidUrl(value)) {
-        setSubmitError(`Please enter a valid URL for ${item.title}.`);
+        setSubmitError(`${item.title} 항목에 올바른 URL을 입력해 주세요.`);
         setSubmitSuccess("");
         return;
       }
@@ -455,7 +455,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     setSubmissionValues(makeInitialSubmissionValues(submissionItems));
     setSubmissionNotes("");
     setSubmitError("");
-    setSubmitSuccess("Submission saved locally.");
+    setSubmitSuccess("정상적으로 저장되었습니다.");
   }
 
   const authRedirectUrl = `/auth?mode=login&redirect=/hackathons/${hackathon.slug}`;
@@ -483,7 +483,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     <main style={{ maxWidth: "1180px", margin: "0 auto", padding: "24px 20px 72px" }}>
       <div style={{ marginBottom: "18px" }}>
         <Link href="/hackathons" style={{ display: "inline-flex", alignItems: "center", gap: "8px", color: "#2563eb", fontWeight: 800, fontSize: "15px" }}>
-          Back to hackathons
+          해커톤 목록으로 돌아가기
         </Link>
       </div>
 
@@ -496,7 +496,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           </div>
 
           <h1 style={{ margin: "0 0 16px", fontSize: "42px", lineHeight: 1.18, fontWeight: 900, letterSpacing: "-0.03em", maxWidth: "860px" }}>{hackathon.title}</h1>
-          <p style={{ margin: "0 0 18px", maxWidth: "760px", lineHeight: 1.8, fontSize: "17px", color: "rgba(255,255,255,0.9)" }}>{details?.sections.overview?.summary ?? "Overview details are not available yet."}</p>
+          <p style={{ margin: "0 0 18px", maxWidth: "760px", lineHeight: 1.8, fontSize: "17px", color: "rgba(255,255,255,0.9)" }}>{details?.sections.overview?.summary ?? "상세 안내가 아직 준비되지 않았습니다."}</p>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "18px" }}>
             {hackathon.tags.map((tag) => (
               <span key={tag} style={{ display: "inline-block", padding: "7px 11px", borderRadius: "999px", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.16)", color: "#ffffff", fontSize: "12px", fontWeight: 700 }}>#{tag}</span>
@@ -504,16 +504,16 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px" }}>
             <div style={{ borderRadius: "18px", padding: "16px 18px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)" }}>
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>Submission deadline</div>
+              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>제출 마감</div>
               <div style={{ fontSize: "18px", fontWeight: 900 }}>{formatDate(hackathon.period.submissionDeadlineAt)}</div>
             </div>
             <div style={{ borderRadius: "18px", padding: "16px 18px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)" }}>
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>End date</div>
+              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>종료일</div>
               <div style={{ fontSize: "18px", fontWeight: 900 }}>{formatDate(hackathon.period.endAt)}</div>
             </div>
             <div style={{ borderRadius: "18px", padding: "16px 18px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)" }}>
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>Team size</div>
-              <div style={{ fontSize: "18px", fontWeight: 900 }}>Up to {maxTeamSize}</div>
+              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>팀 인원</div>
+              <div style={{ fontSize: "18px", fontWeight: 900 }}>최대 {maxTeamSize}명</div>
             </div>
           </div>
         </div>
@@ -521,19 +521,19 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
       <section style={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "24px", padding: "18px", boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)", marginBottom: "24px" }}>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
-          <TabButton active={activeTab === "evaluation"} onClick={() => setActiveTab("evaluation")}>Evaluation</TabButton>
-          <TabButton active={activeTab === "schedule"} onClick={() => setActiveTab("schedule")}>Schedule</TabButton>
-          <TabButton active={activeTab === "prize"} onClick={() => setActiveTab("prize")}>Prize</TabButton>
-          <TabButton active={activeTab === "teams"} onClick={() => setActiveTab("teams")}>Teams</TabButton>
+          <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>개요</TabButton>
+          <TabButton active={activeTab === "evaluation"} onClick={() => setActiveTab("evaluation")}>평가</TabButton>
+          <TabButton active={activeTab === "schedule"} onClick={() => setActiveTab("schedule")}>일정</TabButton>
+          <TabButton active={activeTab === "prize"} onClick={() => setActiveTab("prize")}>상금</TabButton>
+          <TabButton active={activeTab === "teams"} onClick={() => setActiveTab("teams")}>팀</TabButton>
           <TabButton active={activeTab === "submit"} onClick={() => setActiveTab("submit")}>Submit</TabButton>
-          <TabButton active={activeTab === "leaderboard"} onClick={() => setActiveTab("leaderboard")}>Leaderboard</TabButton>
+          <TabButton active={activeTab === "leaderboard"} onClick={() => setActiveTab("leaderboard")}>리더보드</TabButton>
         </div>
       </section>
       {activeTab === "overview" && (
-        <SectionCard title="Overview">
+        <SectionCard title="개요">
           <p style={{ margin: "0 0 14px", lineHeight: 1.8, color: "#374151" }}>
-            {details?.sections.overview?.summary ?? "Detailed overview is not available yet."}
+            {details?.sections.overview?.summary ?? "상세 안내가 아직 준비되지 않았습니다."}
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px", marginBottom: notices.length > 0 || quickLinks ? "18px" : 0 }}>
@@ -643,11 +643,11 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       {activeTab === "teams" && (
         <SectionCard title="Teams">
           <p style={{ margin: "0 0 14px", color: "#374151", lineHeight: 1.8 }}>
-            Team formation for this hackathon is managed through the camp board. You can review the current team status before moving to the recruiting page.
+            이 해커톤의 팀 구성은 팀원 모집 게시판에서 관리됩니다. 이동하기 전에 현재 팀 상태를 먼저 확인해 주세요.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "14px", marginBottom: "18px" }}>
-            <StatCard label="Camp board" value={details?.sections.teams?.campEnabled ? "Open" : "Off"} />
+            <StatCard label="팀원 모집 게시판" value={details?.sections.teams?.campEnabled ? "Open" : "Off"} />
             <StatCard label="Solo allowed" value={allowSolo ? "Yes" : "No"} />
             <StatCard label="Max size" value={maxTeamSize} />
             <StatCard label="Open teams" value={openTeams.length} tone="blue" />
@@ -798,7 +798,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               Open team board
             </button>
           ) : (
-            <p style={{ margin: 0, color: "#6b7280" }}>No linked camp board is configured.</p>
+            <p style={{ margin: 0, color: "#6b7280" }}>연결된 팀원 모집 게시판이 없습니다.</p>
           )}
         </SectionCard>
       )}
@@ -819,7 +819,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
           {details?.sections.submit?.allowedArtifactTypes && details.sections.submit.allowedArtifactTypes.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
-              <h3 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>Allowed artifacts</h3>
+            <h3 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>허용 산출물</h3>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {details.sections.submit.allowedArtifactTypes.map((type) => (
                   <span key={type} style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontSize: "13px", fontWeight: 700 }}>{type}</span>
@@ -830,7 +830,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
           {details?.sections.submit?.submissionItems && details.sections.submit.submissionItems.length > 0 && (
             <div>
-              <h3 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>Submission items</h3>
+              <h3 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>Submit 항목</h3>
               <div style={{ display: "grid", gap: "12px" }}>
                 {details.sections.submit.submissionItems.map((item) => (
                   <div key={item.key} style={{ borderRadius: "18px", background: "#ffffff", border: "1px solid #e5e7eb", padding: "16px 18px" }}>
@@ -855,9 +855,9 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     color: "#4b5563",
                   }}
                 >
-                  Login is required to save submissions. {" "}
+                  Submit을 저장하려면 Login이 필요합니다. {" "}
                   <Link href={authRedirectUrl} style={{ color: "#2563eb", fontWeight: 800 }}>
-                    Open auth
+                    Login 하러 가기
                   </Link>
                 </div>
               ) : (
@@ -871,7 +871,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     color: "#374151",
                   }}
                 >
-                  Saving as {currentNickname || "current user"}.
+                  현재 사용자로 저장됩니다: {currentNickname || "member"}
                 </div>
               )}
 
@@ -943,13 +943,13 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                         color: "#111827",
                       }}
                     >
-                      Notes
+                      메모
                     </label>
                     <textarea
                       id="submission-notes"
                       value={submissionNotes}
                       onChange={(e) => setSubmissionNotes(e.target.value)}
-                      placeholder="Optional notes"
+                      placeholder="선택 사항"
                       rows={3}
                       style={{
                         width: "100%",
@@ -1014,13 +1014,13 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     cursor: currentUserId ? "pointer" : "not-allowed",
                   }}
                 >
-                  Save submission
+                  저장하기
                 </button>
               </form>
 
               <div style={{ marginTop: "22px" }}>
                 <h3 style={{ margin: "0 0 12px", fontSize: "20px", fontWeight: 900 }}>
-                  Submission history
+                  저장 이력
                 </h3>
 
                 {!currentUserId ? (
@@ -1033,7 +1033,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                       color: "#6b7280",
                     }}
                   >
-                    Login to view your saved submissions.
+                    저장한 Submit을 보려면 Login이 필요합니다.
                   </div>
                 ) : submissionHistory.length > 0 ? (
                   <div style={{ display: "grid", gap: "12px" }}>
@@ -1056,7 +1056,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                             marginBottom: "10px",
                           }}
                         >
-                          <div style={{ fontWeight: 800, color: "#111827" }}>Saved submission</div>
+                          <div style={{ fontWeight: 800, color: "#111827" }}>저장된 Submit</div>
                           <div style={{ color: "#6b7280", fontSize: "14px" }}>
                             {formatDate(record.submittedAt)}
                           </div>
@@ -1104,7 +1104,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                                   marginBottom: "4px",
                                 }}
                               >
-                                Notes
+                                메모
                               </div>
                               <div style={{ color: "#111827", lineHeight: 1.7 }}>
                                 {record.notes}
@@ -1125,7 +1125,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                       color: "#6b7280",
                     }}
                   >
-                    No submissions saved yet.
+                    아직 저장한 Submit이 없습니다.
                   </div>
                 )}
               </div>
@@ -1141,7 +1141,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                 color: "#6b7280",
               }}
             >
-              No submission items are configured for this hackathon.
+              이 해커톤에는 Submit 항목이 설정되어 있지 않습니다.
             </div>
           )}
         </SectionCard>
@@ -1171,17 +1171,17 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
             }}
           >
             <h3 style={{ margin: "0 0 12px", fontSize: "24px", fontWeight: 900, color: "#111827" }}>
-              Team setup checklist
+              팀 구성 전 유의사항
             </h3>
             <p style={{ margin: "0 0 14px", color: "#374151", lineHeight: 1.8 }}>
-              Review the checklist before starting a team invite or join action.
+              팀 참여 또는 관리 액션을 진행하기 전에 아래 내용을 확인해 주세요.
             </p>
             <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "18px" }}>
-              <div style={{ fontWeight: 800, color: "#111827", marginBottom: "10px" }}>Team setup notes</div>
+              <div style={{ fontWeight: 800, color: "#111827", marginBottom: "10px" }}>확인할 내용</div>
               <ul style={{ margin: 0, paddingLeft: "20px", color: "#374151", lineHeight: 1.9 }}>
-                <li>Check the maximum team size before inviting members.</li>
-                <li>Confirm who is responsible for the final submission.</li>
-                <li>Review team status before the deadline.</li>
+                <li>팀 최대 인원을 먼저 확인해 주세요.</li>
+                <li>최종 제출 담당자를 미리 정해 주세요.</li>
+                <li>마감 전 팀 상태를 다시 점검해 주세요.</li>
               </ul>
             </div>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end", marginTop: "18px" }}>
@@ -1198,7 +1198,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                   cursor: "pointer",
                 }}
               >
-                Cancel
+                취소
               </button>
               <button
                 type="button"
@@ -1213,7 +1213,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                   cursor: "pointer",
                 }}
               >
-                Continue
+                확인 후 진행
               </button>
             </div>
           </div>
@@ -1221,9 +1221,9 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       )}
 
       {activeTab === "leaderboard" && (
-        <SectionCard title="Leaderboard">
+        <SectionCard title="리더보드">
           <p style={{ margin: "0 0 16px", color: "#374151", lineHeight: 1.8 }}>
-            {details?.sections.leaderboard?.note ?? "Leaderboard details are not available yet."}
+            {details?.sections.leaderboard?.note ?? "리더보드 안내가 아직 준비되지 않았습니다."}
           </p>
 
           {leaderboardPreview.length > 0 ? (
@@ -1233,15 +1233,15 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                   <div key={`${entry.rank}-${entry.teamName}`} style={{ borderRadius: "18px", background: "#ffffff", border: "1px solid #e5e7eb", padding: "18px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "10px" }}>
                       <div>
-                        <div style={{ color: "#2563eb", fontWeight: 800, marginBottom: "4px" }}>Rank {entry.rank}</div>
+                        <div style={{ color: "#2563eb", fontWeight: 800, marginBottom: "4px" }}>순위 {entry.rank}</div>
                         <div style={{ fontSize: "20px", fontWeight: 900 }}>{entry.teamName}</div>
                       </div>
                       <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{safeScore(entry.score)}</div>
                     </div>
-                    <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>Submitted {formatDate(entry.submittedAt)}</div>
+                    <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>제출일 {formatDate(entry.submittedAt)}</div>
                     {entry.scoreBreakdown && (
                       <div style={{ color: "#374151", fontSize: "14px", lineHeight: 1.7 }}>
-                        Participant {entry.scoreBreakdown.participant ?? "-"} - Judge {entry.scoreBreakdown.judge ?? "-"}
+                        참가자 {entry.scoreBreakdown.participant ?? "-"} - 심사위원 {entry.scoreBreakdown.judge ?? "-"}
                       </div>
                     )}
                   </div>
@@ -1250,14 +1250,14 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 <Link href="/rankings" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "12px 16px", borderRadius: "14px", background: "#2563eb", color: "#ffffff", fontWeight: 800 }}>
-                  View all rankings
+                  전체 랭킹 보기
                 </Link>
-                <div style={{ color: "#6b7280", fontSize: "14px", alignSelf: "center" }}>Last updated {leaderboard ? formatDate(leaderboard.updatedAt) : "-"}</div>
+                <div style={{ color: "#6b7280", fontSize: "14px", alignSelf: "center" }}>마지막 업데이트 {leaderboard ? formatDate(leaderboard.updatedAt) : "-"}</div>
               </div>
             </>
           ) : (
             <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "18px", color: "#6b7280" }}>
-              Public leaderboard data is not available yet for this hackathon.
+              이 해커톤의 공개 리더보드 데이터가 아직 없습니다.
             </div>
           )}
         </SectionCard>

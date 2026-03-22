@@ -243,7 +243,7 @@ export default function FloatingMessageHub() {
     return null;
   }
 
-  function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyText: string, showRequester: boolean) {
+function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyText: string, showRequester: boolean) {
     const entries = Object.entries(groups);
 
     if (entries.length === 0) {
@@ -271,7 +271,7 @@ export default function FloatingMessageHub() {
                         {badge.label}
                       </span>
                     </div>
-                    <div style={{ color: "#6b7280", fontSize: "13px" }}>Created {formatDate(item.createdAt)}</div>
+                    <div style={{ color: "#6b7280", fontSize: "13px" }}>생성일 {formatDate(item.createdAt)}</div>
                   </div>
                 );
               })}
@@ -301,14 +301,14 @@ export default function FloatingMessageHub() {
                 <div style={{ color: "#6b7280", fontSize: "14px" }}>{teamsByCode[item.teamCode] || item.teamCode}</div>
               </div>
               <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "12px" }}>
-                {type === "received" ? "Received" : "Sent"}
+                {type === "received" ? "받음" : "보냄"}
               </span>
             </div>
             <div style={{ color: "#374151", fontSize: "14px", marginBottom: "6px" }}>
-              {type === "received" ? `From ${item.senderNickname}` : `To ${item.receiverNickname}`}
+              {type === "received" ? `보낸 사람 ${item.senderNickname}` : `받는 사람 ${item.receiverNickname}`}
             </div>
             <div style={{ color: "#374151", lineHeight: 1.6, marginBottom: "6px" }}>{item.content}</div>
-            <div style={{ color: "#6b7280", fontSize: "13px" }}>Created {formatDate(item.createdAt)}</div>
+            <div style={{ color: "#6b7280", fontSize: "13px" }}>생성일 {formatDate(item.createdAt)}</div>
           </div>
         ))}
       </div>
@@ -381,7 +381,7 @@ export default function FloatingMessageHub() {
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center" }}>
               <div>
                 <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "4px" }}>MESSAGE HUB</div>
-                <div style={{ fontSize: "22px", fontWeight: 900, color: "#111827" }}>Hello, {nickname}</div>
+                <div style={{ fontSize: "22px", fontWeight: 900, color: "#111827" }}>안녕하세요, {nickname}</div>
               </div>
               <button
                 type="button"
@@ -404,10 +404,10 @@ export default function FloatingMessageHub() {
 
           <div style={{ display: "flex", gap: "8px", padding: "12px 18px", borderBottom: "1px solid #eef2f7", flexWrap: "wrap" }}>
             {[
-              { key: "receivedRequests", label: "Received requests" },
-              { key: "sentRequests", label: "Sent requests" },
-              { key: "receivedMessages", label: "Received messages" },
-              { key: "sentMessages", label: "Sent messages" },
+              { key: "receivedRequests", label: "받은 Request" },
+              { key: "sentRequests", label: "보낸 Request" },
+              { key: "receivedMessages", label: "받은 Message" },
+              { key: "sentMessages", label: "보낸 Message" },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -430,10 +430,10 @@ export default function FloatingMessageHub() {
           </div>
 
           <div style={{ overflow: "auto", padding: "18px" }}>
-            {activeTab === "receivedRequests" ? renderRequestGroups(groupedReceivedRequests, "No received requests yet.", true) : null}
-            {activeTab === "sentRequests" ? renderRequestGroups(groupedSentRequests, "No sent requests yet.", false) : null}
-            {activeTab === "receivedMessages" ? renderMessageList(receivedMessages, "No received messages yet.", "received") : null}
-            {activeTab === "sentMessages" ? renderMessageList(sentMessages, "No sent messages yet.", "sent") : null}
+            {activeTab === "receivedRequests" ? renderRequestGroups(groupedReceivedRequests, "아직 받은 Request가 없습니다.", true) : null}
+            {activeTab === "sentRequests" ? renderRequestGroups(groupedSentRequests, "아직 보낸 Request가 없습니다.", false) : null}
+            {activeTab === "receivedMessages" ? renderMessageList(receivedMessages, "아직 받은 Message가 없습니다.", "received") : null}
+            {activeTab === "sentMessages" ? renderMessageList(sentMessages, "아직 보낸 Message가 없습니다.", "sent") : null}
           </div>
         </div>
       ) : null}

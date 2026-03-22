@@ -200,17 +200,17 @@ export default function CampPage() {
     e.preventDefault();
 
     if (!currentUserId) {
-      alert("Login is required to create or manage team posts.");
+      alert("팀 모집글을 작성하거나 관리하려면 Login이 필요합니다.");
       return;
     }
 
     if (!name.trim() || !intro.trim() || !contactUrl.trim()) {
-      alert("Team name, intro, and contact URL are required.");
+      alert("팀 이름, 소개, 연락 링크를 입력해 주세요.");
       return;
     }
 
     if (editingTeamCode && !isOwner(editingTeamCode)) {
-      alert("Only the team owner can edit this post.");
+      alert("팀 소유자만 수정할 수 있습니다.");
       return;
     }
 
@@ -245,7 +245,7 @@ export default function CampPage() {
 
       persistTeams(updatedTeams);
       resetForm();
-      alert("Team post updated.");
+      alert("정상적으로 수정되었습니다.");
       return;
     }
 
@@ -256,12 +256,12 @@ export default function CampPage() {
       [nextTeamCode]: currentUserId,
     });
     resetForm();
-    alert("Team post created.");
+    alert("정상적으로 등록되었습니다.");
   }
 
   function handleEditTeam(teamCode: string) {
     if (!isOwner(teamCode)) {
-      alert("Only the team owner can edit this post.");
+      alert("팀 소유자만 수정할 수 있습니다.");
       return;
     }
 
@@ -280,7 +280,7 @@ export default function CampPage() {
 
   function handleToggleTeamOpen(teamCode: string, nextOpen: boolean) {
     if (!isOwner(teamCode)) {
-      alert("Only the team owner can manage this post.");
+      alert("팀 소유자만 관리할 수 있습니다.");
       return;
     }
 
@@ -311,7 +311,7 @@ export default function CampPage() {
 
   function handleOpenMessageModal(team: Team) {
     if (!currentUserId) {
-      alert("Login is required to send a message.");
+      alert("쪽지를 보내려면 Login이 필요합니다.");
       return;
     }
 
@@ -327,12 +327,12 @@ export default function CampPage() {
     e.preventDefault();
 
     if (!currentUserId) {
-      setMessageError("Login is required to send a message.");
+      setMessageError("쪽지를 보내려면 Login이 필요합니다.");
       return;
     }
 
     if (!messageTitle.trim() || !messageContent.trim()) {
-      setMessageError("Title and message are required.");
+      setMessageError("제목과 내용을 입력해 주세요.");
       return;
     }
 
@@ -351,7 +351,7 @@ export default function CampPage() {
     const receiver = resolveMessageReceiver(messageTeamCode, teamOwners);
 
     if (!receiver) {
-      setMessageError("Could not find the team owner information.");
+      setMessageError("팀 소유자 정보를 찾을 수 없습니다.");
       return;
     }
 
@@ -374,17 +374,17 @@ export default function CampPage() {
     window.dispatchEvent(new Event(MESSAGE_HUB_CHANGED_EVENT));
 
     resetMessageForm();
-    alert("Message sent.");
+    alert("정상적으로 전송되었습니다.");
   }
 
   return (
     <main style={{ padding: "40px", maxWidth: "1100px", margin: "0 auto" }}>
       <div style={{ marginBottom: "32px" }}>
         <h1 style={{ fontSize: "36px", fontWeight: "bold", marginBottom: "10px" }}>
-          Camp
+          팀원 모집
         </h1>
         <p style={{ color: "#555", lineHeight: 1.6 }}>
-          Review team posts, edit your post, and manage recruiting status.
+          팀 모집글을 확인하고, 내 모집글을 수정하거나 모집 상태를 관리할 수 있습니다.
         </p>
       </div>
 
@@ -398,7 +398,7 @@ export default function CampPage() {
         }}
       >
         <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "16px" }}>
-          Filter
+          필터
         </h2>
 
         <div
@@ -411,7 +411,7 @@ export default function CampPage() {
         >
           <div>
             <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              Hackathon
+              해커톤
             </label>
             <select
               value={hackathonFilter}
@@ -423,7 +423,7 @@ export default function CampPage() {
                 minWidth: "280px",
               }}
             >
-              <option value="">All</option>
+              <option value="">전체</option>
               {uniqueHackathons.map((slug) => (
                 <option key={slug} value={slug}>
                   {getHackathonTitle(slug)}
@@ -446,7 +446,7 @@ export default function CampPage() {
               checked={openOnly}
               onChange={(e) => setOpenOnly(e.target.checked)}
             />
-            Open only
+            Open만 보기
           </label>
         </div>
       </section>
@@ -462,10 +462,10 @@ export default function CampPage() {
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
           <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
-            {editingTeamCode ? "Edit team post" : "Create team post"}
+            {editingTeamCode ? "팀 모집글 수정" : "팀 모집글 작성"}
           </h2>
           {currentNickname ? (
-            <div style={{ color: "#374151", fontWeight: 700 }}>Signed in as {currentNickname}</div>
+            <div style={{ color: "#374151", fontWeight: 700 }}>현재 Login 사용자: {currentNickname}</div>
           ) : null}
         </div>
 
@@ -480,7 +480,7 @@ export default function CampPage() {
               marginBottom: "18px",
             }}
           >
-            Login is required to create or manage team posts. <Link href="/auth?mode=login&redirect=/camp" style={{ color: "#2563eb", fontWeight: 800 }}>Open auth</Link>
+            팀 모집글을 작성하거나 관리하려면 Login이 필요합니다. <Link href="/auth?mode=login&redirect=/camp" style={{ color: "#2563eb", fontWeight: 800 }}>Login 하러 가기</Link>
           </div>
         )}
 
@@ -494,7 +494,7 @@ export default function CampPage() {
           >
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-                Team name
+                팀 이름
               </label>
               <input
                 value={name}
@@ -513,7 +513,7 @@ export default function CampPage() {
 
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-                Hackathon
+                해커톤
               </label>
               <select
                 value={hackathonSlug}
@@ -535,7 +535,7 @@ export default function CampPage() {
 
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-                Member count
+                팀 인원
               </label>
               <input
                 type="number"
@@ -556,7 +556,7 @@ export default function CampPage() {
 
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-                Team status
+                모집 상태
               </label>
               <select
                 value={isOpen ? "open" : "closed"}
@@ -578,7 +578,7 @@ export default function CampPage() {
 
           <div style={{ marginTop: "16px" }}>
             <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              Looking for
+              모집 포지션
             </label>
             <input
               value={lookingFor}
@@ -594,18 +594,18 @@ export default function CampPage() {
               }}
             />
             <p style={{ marginTop: "6px", color: "#666", fontSize: "14px" }}>
-              Separate roles with commas.
+              여러 역할은 쉼표로 구분해 주세요.
             </p>
           </div>
 
           <div style={{ marginTop: "16px" }}>
             <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              Intro
+              팀 소개
             </label>
             <textarea
               value={intro}
               onChange={(e) => setIntro(e.target.value)}
-              placeholder="Describe your team and recruiting needs"
+              placeholder="팀 소개와 모집 내용을 입력해 주세요"
               rows={4}
               disabled={!currentUserId}
               style={{
@@ -621,7 +621,7 @@ export default function CampPage() {
 
           <div style={{ marginTop: "16px" }}>
             <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              Contact URL
+              연락 링크
             </label>
             <input
               value={contactUrl}
@@ -652,7 +652,7 @@ export default function CampPage() {
                 cursor: currentUserId ? "pointer" : "not-allowed",
               }}
             >
-              {editingTeamCode ? "Save changes" : "Create team post"}
+              {editingTeamCode ? "수정하기" : "등록하기"}
             </button>
 
             {editingTeamCode && (
@@ -669,7 +669,7 @@ export default function CampPage() {
                   cursor: "pointer",
                 }}
               >
-                Cancel
+                취소
               </button>
             )}
           </div>
@@ -694,8 +694,8 @@ export default function CampPage() {
             gap: "12px",
           }}
         >
-          <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>Team posts</h2>
-          <p style={{ color: "#666" }}>Total {filteredTeams.length}</p>
+          <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>팀 모집글</h2>
+          <p style={{ color: "#666" }}>총 {filteredTeams.length}개</p>
         </div>
 
         <div style={{ display: "grid", gap: "16px" }}>
@@ -730,7 +730,7 @@ export default function CampPage() {
                         {getHackathonTitle(team.hackathonSlug)}
                       </p>
                       {canManage ? (
-                        <p style={{ color: "#2563eb", fontWeight: 700, margin: 0 }}>Your post</p>
+                        <p style={{ color: "#2563eb", fontWeight: 700, margin: 0 }}>내 모집글</p>
                       ) : null}
                     </div>
 
@@ -752,15 +752,15 @@ export default function CampPage() {
                   </div>
 
                   <p style={{ marginBottom: "8px" }}>
-                    <strong>Members:</strong> {team.memberCount}
+                    <strong>팀 인원:</strong> {team.memberCount}
                   </p>
 
                   <p style={{ marginBottom: "10px", lineHeight: 1.7 }}>
-                    <strong>Intro:</strong> {team.intro}
+                    <strong>소개:</strong> {team.intro}
                   </p>
 
                   <div style={{ marginBottom: "10px" }}>
-                    <strong>Looking for</strong>{" "}
+                    <strong>모집 포지션</strong>{" "}
                     {team.lookingFor.length > 0 ? (
                       team.lookingFor.map((role) => (
                         <span
@@ -780,16 +780,16 @@ export default function CampPage() {
                         </span>
                       ))
                     ) : (
-                      <span>None</span>
+                      <span>없음</span>
                     )}
                   </div>
 
                   <p style={{ marginBottom: "10px" }}>
-                    <strong>Created:</strong> {formatDate(team.createdAt)}
+                    <strong>등록일:</strong> {formatDate(team.createdAt)}
                   </p>
 
                   <a href={team.contact.url} target="_blank" rel="noreferrer">
-                    Open contact
+                    연락 링크 열기
                   </a>
 
                   {canManage ? (
@@ -807,7 +807,7 @@ export default function CampPage() {
                           cursor: "pointer",
                         }}
                       >
-                        Edit
+                        수정
                       </button>
 
                       <button
@@ -823,7 +823,7 @@ export default function CampPage() {
                           cursor: "pointer",
                         }}
                       >
-                        {team.isOpen ? "Close recruitment" : "Reopen recruitment"}
+                        {team.isOpen ? "모집 마감" : "모집 재오픈"}
                       </button>
                     </div>
                   ) : (
@@ -841,7 +841,7 @@ export default function CampPage() {
                           cursor: "pointer",
                         }}
                       >
-                        Send message
+                        쪽지 보내기
                       </button>
                     </div>
                   )}
@@ -849,7 +849,7 @@ export default function CampPage() {
               );
             })
           ) : (
-            <p>No teams match the current filter.</p>
+            <p>조건에 맞는 팀이 없습니다.</p>
           )}
         </div>
       </section>
@@ -879,21 +879,21 @@ export default function CampPage() {
             }}
           >
             <h3 style={{ margin: "0 0 10px", fontSize: "24px", fontWeight: 900, color: "#111827" }}>
-              Send message
+              쪽지 보내기
             </h3>
             <p style={{ margin: "0 0 16px", color: "#4b5563", lineHeight: 1.7 }}>
-              Send a message to {messageTeamName}.
+              {messageTeamName} 팀에 쪽지를 보냅니다.
             </p>
 
             <form onSubmit={handleSendMessage} style={{ display: "grid", gap: "16px" }}>
               <div>
                 <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
-                  Title
+                  제목
                 </label>
                 <input
                   value={messageTitle}
                   onChange={(e) => setMessageTitle(e.target.value)}
-                  placeholder="Short title"
+                  placeholder="제목을 입력해 주세요"
                   style={{
                     width: "100%",
                     height: "48px",
@@ -907,12 +907,12 @@ export default function CampPage() {
 
               <div>
                 <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
-                  Message
+                  Message 내용
                 </label>
                 <textarea
                   value={messageContent}
                   onChange={(e) => setMessageContent(e.target.value)}
-                  placeholder="Write your message"
+                  placeholder="보낼 내용을 입력해 주세요"
                   rows={5}
                   style={{
                     width: "100%",
@@ -954,7 +954,7 @@ export default function CampPage() {
                     cursor: "pointer",
                   }}
                 >
-                  Cancel
+                  취소
                 </button>
                 <button
                   type="submit"
@@ -968,7 +968,7 @@ export default function CampPage() {
                     cursor: "pointer",
                   }}
                 >
-                  Send
+                  보내기
                 </button>
               </div>
             </form>

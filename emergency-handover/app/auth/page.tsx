@@ -30,7 +30,7 @@ export default function AuthPage() {
     setCurrentNickname(user?.nickname ?? "");
   }, []);
 
-  const heading = useMemo(() => (mode === "login" ? "Login" : "Create account"), [mode]);
+  const heading = useMemo(() => (mode === "login" ? "Login" : "회원가입"), [mode]);
 
   function resetMessages() {
     setError("");
@@ -43,7 +43,7 @@ export default function AuthPage() {
 
     if (mode === "signup") {
       if (isEmailTaken(email)) {
-        setError("This email is already registered.");
+        setError("이미 가입된 이메일입니다.");
         return;
       }
 
@@ -53,7 +53,7 @@ export default function AuthPage() {
         return;
       }
 
-      setSuccess("Account created. Redirecting...");
+      setSuccess("회원가입이 완료되었습니다. 잠시 후 이동합니다.");
       router.push(redirectTo);
       router.refresh();
       return;
@@ -65,7 +65,7 @@ export default function AuthPage() {
       return;
     }
 
-    setSuccess("Logged in. Redirecting...");
+    setSuccess("Login 되었습니다. 잠시 후 이동합니다.");
     router.push(redirectTo);
     router.refresh();
   }
@@ -73,7 +73,7 @@ export default function AuthPage() {
   function handleLogout() {
     logout();
     setCurrentNickname("");
-    setSuccess("Logged out.");
+    setSuccess("Logout 되었습니다.");
     setError("");
   }
 
@@ -96,7 +96,7 @@ export default function AuthPage() {
           {heading}
         </h1>
         <p style={{ margin: 0, maxWidth: "520px", lineHeight: 1.7, color: "rgba(255,255,255,0.9)" }}>
-          Use a local account to create team posts and save submissions. Read-only pages stay public.
+          로컬 계정으로 팀 모집글을 만들고 Submit을 저장할 수 있습니다. 읽기 전용 페이지는 누구나 볼 수 있습니다.
         </p>
       </section>
 
@@ -144,7 +144,7 @@ export default function AuthPage() {
               cursor: "pointer",
             }}
           >
-            Sign up
+            회원가입
           </button>
         </div>
 
@@ -159,7 +159,7 @@ export default function AuthPage() {
             }}
           >
             <div style={{ fontWeight: 800, color: "#111827", marginBottom: "8px" }}>
-              Signed in as {currentNickname}
+              현재 Login 사용자: {currentNickname}
             </div>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <Link
@@ -176,7 +176,7 @@ export default function AuthPage() {
                   textDecoration: "none",
                 }}
               >
-                Continue
+                계속하기
               </Link>
               <button
                 type="button"
@@ -201,7 +201,7 @@ export default function AuthPage() {
           {mode === "signup" && (
             <div>
               <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
-                Nickname
+                닉네임
               </label>
               <input
                 value={nickname}
@@ -241,13 +241,13 @@ export default function AuthPage() {
 
           <div>
             <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
-              Password
+              비밀번호
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 4 characters"
+              placeholder="최소 4자 이상"
               style={{
                 width: "100%",
                 height: "48px",
@@ -304,7 +304,7 @@ export default function AuthPage() {
               cursor: "pointer",
             }}
           >
-            {mode === "login" ? "Login" : "Create account"}
+            {mode === "login" ? "Login" : "회원가입"}
           </button>
         </form>
       </section>

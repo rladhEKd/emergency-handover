@@ -7,10 +7,10 @@ import Container from "./ui/Container";
 import styles from "./Navbar.module.css";
 
 const navItems = [
-  { href: "/", label: "Home" },
-  { href: "/hackathons", label: "Hackathons" },
-  { href: "/camp", label: "Camp" },
-  { href: "/rankings", label: "Rankings" },
+  { href: "/", label: "홈" },
+  { href: "/hackathons", label: "해커톤" },
+  { href: "/camp", label: "팀원 모집" },
+  { href: "/rankings", label: "랭킹" },
 ];
 
 export default function Navbar() {
@@ -166,7 +166,7 @@ export default function Navbar() {
                     background: "#2563eb",
                   }}
                 >
-                  Sign up
+                  회원가입
                 </Link>
               </div>
             )}

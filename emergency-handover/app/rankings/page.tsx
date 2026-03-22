@@ -40,9 +40,9 @@ function formatDate(dateString: string) {
 function getHackathonTitle(slug: string) {
   switch (slug) {
     case "aimers-8-model-lite":
-      return "Aimers 8기 : 모델 경량화 온라인 해커톤";
+      return "Aimers 8";
     case "daker-handover-2026-03":
-      return "긴급 인수인계 해커톤: 명세서만 보고 구현하라";
+      return "Daker Handover 2026.03";
     default:
       return slug;
   }

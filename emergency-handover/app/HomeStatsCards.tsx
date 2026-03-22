@@ -75,7 +75,7 @@ export default function HomeStatsCards({
             cursor: "pointer",
           }}
         >
-          <div style={{ fontSize: "13px", opacity: 0.85 }}>Hackathons</div>
+          <div style={{ fontSize: "13px", opacity: 0.85 }}>해커톤</div>
           <div style={{ fontSize: "28px", fontWeight: 900 }}>
             {publicHackathonCount}
           </div>
@@ -96,7 +96,7 @@ export default function HomeStatsCards({
             cursor: "pointer",
           }}
         >
-          <div style={{ fontSize: "13px", opacity: 0.85 }}>Open teams</div>
+          <div style={{ fontSize: "13px", opacity: 0.85 }}>모집 중인 팀</div>
           <div style={{ fontSize: "28px", fontWeight: 900 }}>
             {openTeamCount}
           </div>
@@ -117,7 +117,7 @@ export default function HomeStatsCards({
             cursor: "pointer",
           }}
         >
-          <div style={{ fontSize: "13px", opacity: 0.85 }}>Rankings</div>
+          <div style={{ fontSize: "13px", opacity: 0.85 }}>랭킹</div>
           <div style={{ fontSize: "28px", fontWeight: 900 }}>
             {publicRankingCount}
           </div>

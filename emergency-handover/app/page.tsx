@@ -68,11 +68,11 @@ function getStatusStyle(status: Hackathon["status"]) {
 function getHackathonTitle(slug: string) {
   switch (slug) {
     case "aimers-8-model-lite":
-      return "Aimers 8기 : 모델 경량화 온라인 해커톤";
+      return "Aimers 8";
     case "monthly-vibe-coding-2026-02":
-      return "월간 해커톤 : 바이브 코딩 개선 AI 아이디어 공모전";
+      return "Monthly Vibe Coding 2026.02";
     case "daker-handover-2026-03":
-      return "긴급 인수인계 해커톤: 명세서만 보고 구현하라";
+      return "Daker Handover 2026.03";
     default:
       return slug;
   }
@@ -110,7 +110,6 @@ export default function HomePage() {
         padding: "24px 20px 72px",
       }}
     >
-      {/* HERO */}
       <section
         style={{
           position: "relative",
@@ -138,7 +137,7 @@ export default function HomePage() {
               marginBottom: "18px",
             }}
           >
-            HACKATHON PLATFORM
+            해커톤 플랫폼
           </div>
 
           <h1
@@ -162,12 +161,11 @@ export default function HomePage() {
               color: "rgba(255,255,255,0.9)",
             }}
           >
-            다양한 해커톤을 탐색하고 팀을 모집하거나 랭킹을 확인할 수 있는 올인원 플랫폼입니다.
+            다양한 해커톤을 살펴보고 팀을 구하거나 랭킹을 확인할 수 있는 서비스입니다.
             <br />
-            쉽고 빠르게 해커톤에 참여해보세요.
+            관심 있는 해커톤에 빠르게 참여해 보세요.
           </p>
 
-          {/* STAT CARDS */}
           <HomeStatsCards
             publicHackathonCount={hackathons.length}
             publicOpenTeamCount={teams.filter((team) => team.isOpen).length}
@@ -176,7 +174,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CONTENT */}
       <section
         style={{
           display: "grid",
@@ -184,7 +181,6 @@ export default function HomePage() {
           gap: "20px",
         }}
       >
-        {/* 최근 해커톤 */}
         <div
           className={styles.sectionPanel}
           style={{
@@ -230,7 +226,7 @@ export default function HomePage() {
                   </h3>
 
                   <p style={{ margin: 0, color: "#6b7280" }}>
-                    제출 마감 · {formatDate(hackathon.period.submissionDeadlineAt)}
+                    제출 마감: {formatDate(hackathon.period.submissionDeadlineAt)}
                   </p>
                 </article>
               </Link>
@@ -238,7 +234,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* 팀 + 랭킹 */}
         <div style={{ display: "grid", gap: "20px" }}>
           <div
             className={styles.sectionPanel}
@@ -290,7 +285,7 @@ export default function HomePage() {
             }}
           >
             <h2 style={{ margin: "0 0 18px", fontSize: "26px", fontWeight: 900 }}>
-              상위 팀 미리보기
+              랭킹 미리보기
             </h2>
 
             <div style={{ display: "grid", gap: "12px" }}>
