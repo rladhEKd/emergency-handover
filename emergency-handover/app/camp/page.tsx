@@ -385,527 +385,261 @@ export default function CampPage() {
   }
 
   return (
-    <main style={{ padding: "40px", maxWidth: "1100px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "32px" }}>
-        <h1 style={{ fontSize: "36px", fontWeight: "bold", marginBottom: "10px" }}>
-          팀원 모집
-        </h1>
-        <p style={{ color: "#555", lineHeight: 1.6 }}>
-          팀 모집글을 확인하고, 내 모집글을 수정하거나 모집 상태를 관리할 수 있습니다.
-        </p>
-      </div>
+    <main className="page-shell">
+      <div className="page-stack">
+        <section className="page-hero page-hero--dark" style={{ padding: "22px", marginBottom: "18px" }}>
+          <span className="eyebrow">Team Matching</span>
+          <h1 className="hero-title" style={{ marginTop: "10px", marginBottom: "10px" }}>
+            팀원 모집
+          </h1>
+          <div className="hero-meta" style={{ marginTop: 0 }}>
+            <span>전체 {teams.length}개</span>
+            <span>모집중 {teams.filter((team) => team.isOpen).length}개</span>
+            <span>현재 목록 {filteredTeams.length}개</span>
+          </div>
+        </section>
 
-      <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: "16px",
-          padding: "24px",
-          backgroundColor: "#fff",
-          marginBottom: "28px",
-        }}
-      >
-        <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "16px" }}>
-          필터
-        </h2>
-
-        <div
-          style={{
-            display: "flex",
-            gap: "16px",
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <div>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              해커톤
-            </label>
-            <select
-              value={hackathonFilter}
-              onChange={(e) => setHackathonFilter(e.target.value)}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #ccc",
-                minWidth: "280px",
-              }}
-            >
-              <option value="">전체</option>
-              {uniqueHackathons.map((slug) => (
-                <option key={slug} value={slug}>
-                  {getHackathonTitle(slug)}
-                </option>
-              ))}
-            </select>
+        <section className="form-shell" style={{ marginBottom: "18px" }}>
+          <div className="section-header" style={{ marginBottom: "14px" }}>
+            <div>
+              <h2 className="section-title">필터</h2>
+            </div>
           </div>
 
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginTop: "28px",
-              fontWeight: "bold",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={openOnly}
-              onChange={(e) => setOpenOnly(e.target.checked)}
-            />
-            모집중만 보기
-          </label>
-        </div>
-      </section>
+          <div className="toolbar" style={{ alignItems: "end" }}>
+            <div className="field">
+              <label htmlFor="camp-filter-hackathon">해커톤</label>
+              <select
+                id="camp-filter-hackathon"
+                value={hackathonFilter}
+                onChange={(e) => setHackathonFilter(e.target.value)}
+                className="select"
+              >
+                <option value="">전체</option>
+                {uniqueHackathons.map((slug) => (
+                  <option key={slug} value={slug}>
+                    {getHackathonTitle(slug)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-      <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: "16px",
-          padding: "24px",
-          backgroundColor: "#fff",
-          marginBottom: "28px",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
-          <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
-            {editingTeamCode ? "팀 모집글 수정" : "팀 모집글 작성"}
-          </h2>
-          {currentNickname ? (
-            <div style={{ color: "#374151", fontWeight: 700 }}>현재 Login 사용자: {currentNickname}</div>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                minHeight: "46px",
+                color: "#334155",
+                fontSize: "13px",
+                fontWeight: 700,
+              }}
+            >
+              <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
+              모집중만 보기
+            </label>
+          </div>
+        </section>
+
+        <section className="form-shell" style={{ marginBottom: "18px" }}>
+          <div className="section-header" style={{ marginBottom: "14px" }}>
+            <div>
+              <h2 className="section-title">{editingTeamCode ? "팀 모집글 수정" : "팀 모집글 작성"}</h2>
+            </div>
+            {currentNickname ? <div className="muted" style={{ fontWeight: 700 }}>현재 Login 사용자 {currentNickname}</div> : null}
+          </div>
+
+          {!currentUserId ? (
+            <div
+              style={{
+                borderRadius: "14px",
+                padding: "12px 14px",
+                background: "#f8fafc",
+                border: "1px solid #e5e7eb",
+                color: "#4b5563",
+                marginBottom: "14px",
+              }}
+            >
+              팀 모집글을 작성하거나 관리하려면{" "}
+              <Link href="/auth?mode=login&redirect=/camp" style={{ color: "#2563eb", fontWeight: 800 }}>
+                Login
+              </Link>
+              이 필요합니다.
+            </div>
           ) : null}
-        </div>
 
-        {!currentUserId && (
-          <div
-            style={{
-              borderRadius: "14px",
-              padding: "14px 16px",
-              background: "#f8fafc",
-              border: "1px solid #e5e7eb",
-              color: "#4b5563",
-              marginBottom: "18px",
-            }}
-          >
-            팀 모집글을 작성하거나 관리하려면 Login이 필요합니다. <Link href="/auth?mode=login&redirect=/camp" style={{ color: "#2563eb", fontWeight: 800 }}>Login 하러 가기</Link>
-          </div>
-        )}
+          <form onSubmit={handleCreateTeam}>
+            <div className="toolbar">
+              <div className="field">
+                <label htmlFor="camp-name">팀 이름</label>
+                <input id="camp-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="vibe-builders" disabled={!currentUserId} />
+              </div>
 
-        <form onSubmit={handleCreateTeam}>
-          <div
-            style={{
-              display: "grid",
-              gap: "16px",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            }}
-          >
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-                팀 이름
-              </label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="vibe-builders"
-                disabled={!currentUserId}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ccc",
-                  backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
-                }}
-              />
+              <div className="field">
+                <label htmlFor="camp-hackathon">해커톤</label>
+                <select id="camp-hackathon" className="select" value={hackathonSlug} onChange={(e) => setHackathonSlug(e.target.value)} disabled={!currentUserId}>
+                  <option value="">연결 안 함</option>
+                  <option value="aimers-8-model-lite">Aimers 8</option>
+                  <option value="monthly-vibe-coding-2026-02">Monthly Vibe Coding 2026.02</option>
+                  <option value="daker-handover-2026-03">Daker Handover 2026.03</option>
+                </select>
+              </div>
+
+              <div className="field">
+                <label htmlFor="camp-member-count">팀 인원</label>
+                <input id="camp-member-count" className="input" type="number" min={1} max={10} value={memberCount} onChange={(e) => setMemberCount(Number(e.target.value))} disabled={!currentUserId} />
+              </div>
+
+              <div className="field">
+                <label htmlFor="camp-open-state">모집 상태</label>
+                <select id="camp-open-state" className="select" value={isOpen ? "open" : "closed"} onChange={(e) => setIsOpen(e.target.value === "open")} disabled={!currentUserId}>
+                  <option value="open">모집중</option>
+                  <option value="closed">모집 마감</option>
+                </select>
+              </div>
             </div>
 
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-                해커톤
-              </label>
-              <select
-                value={hackathonSlug}
-                onChange={(e) => setHackathonSlug(e.target.value)}
-                disabled={!currentUserId}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ccc",
-                  backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
-                }}
-              >
-                <option value="">연결 안 함</option>
-                <option value="aimers-8-model-lite">Aimers 8</option>
-                <option value="monthly-vibe-coding-2026-02">Monthly Vibe Coding 2026.02</option>
-                <option value="daker-handover-2026-03">Daker Handover 2026.03</option>
-              </select>
+            <div className="stack-md" style={{ marginTop: "16px" }}>
+              <div className="field">
+                <label htmlFor="camp-looking-for">모집 포지션</label>
+                <input id="camp-looking-for" className="input" value={lookingFor} onChange={(e) => setLookingFor(e.target.value)} placeholder="Frontend, Designer" disabled={!currentUserId} />
+                <div className="field-help">여러 역할은 쉼표로 구분해 주세요.</div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="camp-intro">팀 소개</label>
+                <textarea id="camp-intro" className="textarea" value={intro} onChange={(e) => setIntro(e.target.value)} placeholder="팀 소개와 모집 내용을 입력해 주세요" rows={4} disabled={!currentUserId} />
+              </div>
+
+              <div className="field">
+                <label htmlFor="camp-contact-url">공개 연락 링크 (선택)</label>
+                <input id="camp-contact-url" className="input" value={contactUrl} onChange={(e) => setContactUrl(e.target.value)} placeholder="https://open.kakao.com/..." disabled={!currentUserId} />
+                <div className="field-help">오픈채팅 또는 폼 링크처럼 공개 가능한 연락 수단만 입력해 주세요.</div>
+              </div>
             </div>
 
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-                팀 인원
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={memberCount}
-                onChange={(e) => setMemberCount(Number(e.target.value))}
-                disabled={!currentUserId}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ccc",
-                  backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-                모집 상태
-              </label>
-              <select
-                value={isOpen ? "open" : "closed"}
-                onChange={(e) => setIsOpen(e.target.value === "open")}
-                disabled={!currentUserId}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid #ccc",
-                  backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
-                }}
-              >
-                <option value="open">모집중</option>
-                <option value="closed">모집 마감</option>
-              </select>
-            </div>
-          </div>
-
-          <div style={{ marginTop: "16px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              모집 포지션
-            </label>
-            <input
-              value={lookingFor}
-              onChange={(e) => setLookingFor(e.target.value)}
-              placeholder="Frontend, Designer"
-              disabled={!currentUserId}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #ccc",
-                backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
-              }}
-            />
-            <p style={{ marginTop: "6px", color: "#666", fontSize: "14px" }}>
-              여러 역할은 쉼표로 구분해 주세요.
-            </p>
-          </div>
-
-          <div style={{ marginTop: "16px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              팀 소개
-            </label>
-            <textarea
-              value={intro}
-              onChange={(e) => setIntro(e.target.value)}
-              placeholder="팀 소개와 모집 내용을 입력해 주세요"
-              rows={4}
-              disabled={!currentUserId}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #ccc",
-                resize: "vertical",
-                backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
-              }}
-            />
-          </div>
-
-          <div style={{ marginTop: "16px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-              공개 연락 링크 (선택)
-            </label>
-            <input
-              value={contactUrl}
-              onChange={(e) => setContactUrl(e.target.value)}
-              placeholder="https://open.kakao.com/..."
-              disabled={!currentUserId}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #ccc",
-                backgroundColor: currentUserId ? "#fff" : "#f3f4f6",
-              }}
-            />
-            <p style={{ marginTop: "6px", color: "#666", fontSize: "14px" }}>
-              오픈채팅 또는 폼 링크처럼 공개 가능한 연락 수단만 입력해 주세요.
-            </p>
-          </div>
-
-          <div style={{ marginTop: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button
-              type="submit"
-              disabled={!currentUserId}
-              style={{
-                padding: "12px 18px",
-                borderRadius: "10px",
-                border: "none",
-                backgroundColor: currentUserId ? "#2563eb" : "#9ca3af",
-                color: "#fff",
-                fontWeight: "bold",
-                cursor: currentUserId ? "pointer" : "not-allowed",
-              }}
-            >
-              {editingTeamCode ? "수정하기" : "등록하기"}
-            </button>
-
-            {editingTeamCode && (
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                style={{
-                  padding: "12px 18px",
-                  borderRadius: "10px",
-                  border: "1px solid #ccc",
-                  backgroundColor: "#fff",
-                  color: "#374151",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                취소
+            <div className="inline-actions" style={{ marginTop: "18px" }}>
+              <button type="submit" className="btn btn-primary" disabled={!currentUserId}>
+                {editingTeamCode ? "수정하기" : "등록하기"}
               </button>
-            )}
+              {editingTeamCode ? (
+                <button type="button" onClick={handleCancelEdit} className="btn btn-secondary">
+                  취소
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </section>
+
+        <section className="section-card">
+          <div className="section-header" style={{ marginBottom: "14px" }}>
+            <div>
+              <h2 className="section-title">팀 모집글</h2>
+            </div>
+            <div className="muted" style={{ fontWeight: 700 }}>총 {filteredTeams.length}개</div>
           </div>
-        </form>
-      </section>
 
-      <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: "16px",
-          padding: "24px",
-          backgroundColor: "#fff",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "16px",
-            flexWrap: "wrap",
-            gap: "12px",
-          }}
-        >
-          <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>팀 모집글</h2>
-          <p style={{ color: "#666" }}>총 {filteredTeams.length}개</p>
-        </div>
+          <div style={{ display: "grid", gap: "12px" }}>
+            {!teamsReady ? (
+              <StatePanel kind="loading" compact title="팀 목록을 불러오는 중입니다" description="잠시만 기다려 주세요." />
+            ) : teamsError ? (
+              <StatePanel kind="error" compact title={teamsError} description="다시 시도해 주세요." />
+            ) : filteredTeams.length > 0 ? (
+              filteredTeams.map((team) => {
+                const canManage = isOwner(team.teamCode);
 
-        <div style={{ display: "grid", gap: "16px" }}>
-          {!teamsReady ? (
-            <StatePanel
-              kind="loading"
-              compact
-              title="팀 목록을 불러오는 중입니다"
-              description="잠시만 기다려 주세요."
-            />
-          ) : teamsError ? (
-            <StatePanel
-              kind="error"
-              compact
-              title={teamsError}
-              description="다시 시도해 주세요."
-            />
-          ) : filteredTeams.length > 0 ? (
-            filteredTeams.map((team) => {
-              const canManage = isOwner(team.teamCode);
-
-              return (
-                <article
-                  key={team.teamCode}
-                  style={{
-                    border: "1px solid #e5e5e5",
-                    borderRadius: "14px",
-                    padding: "20px",
-                    backgroundColor: "#fafafa",
-                  }}
-                >
-                  <div
+                return (
+                  <article
+                    key={team.teamCode}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "16px",
-                      flexWrap: "wrap",
-                      marginBottom: "10px",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "16px",
+                      padding: "16px",
+                      backgroundColor: "#ffffff",
                     }}
                   >
-                    <div>
-                      <h3 style={{ fontSize: "22px", fontWeight: "bold", marginBottom: "8px" }}>
-                        {team.name}
-                      </h3>
-                      <p style={{ color: "#555", marginBottom: "6px" }}>
-                        {team.hackathonSlug ? getHackathonTitle(team.hackathonSlug) : "연결된 해커톤 없음"}
-                      </p>
-                      {canManage ? (
-                        <p style={{ color: "#2563eb", fontWeight: 700, margin: 0 }}>내 모집글</p>
-                      ) : null}
-                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "start", marginBottom: "10px" }}>
+                      <div style={{ display: "grid", gap: "6px" }}>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                          <h3 style={{ margin: 0, fontSize: "18px", lineHeight: 1.3, fontWeight: 800 }}>{team.name}</h3>
+                          {canManage ? <span className="chip">내 모집글</span> : null}
+                        </div>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", color: "#64748b", fontSize: "12px" }}>
+                          <span>{team.hackathonSlug ? getHackathonTitle(team.hackathonSlug) : "연결된 해커톤 없음"}</span>
+                          <span>인원 {team.memberCount}명</span>
+                        </div>
+                      </div>
 
-                    <div>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "6px 10px",
-                          borderRadius: "999px",
-                          backgroundColor: team.isOpen ? "#e8f7ea" : "#eee",
-                          color: team.isOpen ? "#1e7a35" : "#666",
-                          fontWeight: "bold",
-                          fontSize: "14px",
-                        }}
-                      >
+                      <span className={team.isOpen ? "status-chip status-chip--open" : "status-chip status-chip--closed"}>
                         {team.isOpen ? "모집중" : "모집 마감"}
                       </span>
                     </div>
-                  </div>
 
-                  <p style={{ marginBottom: "8px" }}>
-                    <strong>팀 인원:</strong> {team.memberCount}
-                  </p>
-
-                  <p style={{ marginBottom: "10px", lineHeight: 1.7 }}>
-                    <strong>소개:</strong> {team.intro}
-                  </p>
-
-                  <div style={{ marginBottom: "10px" }}>
-                    <strong>모집 포지션</strong>{" "}
-                    {team.lookingFor.length > 0 ? (
-                      team.lookingFor.map((role) => (
-                        <span
-                          key={role}
-                          style={{
-                            display: "inline-block",
-                            marginRight: "8px",
-                            marginTop: "6px",
-                            padding: "6px 10px",
-                            borderRadius: "999px",
-                            backgroundColor: "#eef4ff",
-                            color: "#2457c5",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {role}
-                        </span>
-                      ))
-                    ) : (
-                      <span>없음</span>
-                    )}
-                  </div>
-
-                  <p style={{ marginBottom: "10px" }}>
-                    <strong>등록일:</strong> {formatDate(team.createdAt)}
-                  </p>
-
-                  {team.contact.url ? (
-                    <div style={{ marginBottom: "10px" }}>
-                      <div style={{ color: "#6b7280", fontSize: "13px", marginBottom: "8px" }}>
-                        팀장이 공개한 연락 링크입니다.
+                    <div style={{ display: "grid", gap: "10px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        {team.lookingFor.length > 0 ? (
+                          team.lookingFor.map((role) => (
+                            <span key={role} className="tag-chip">
+                              {role}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="muted" style={{ fontSize: "13px" }}>모집 포지션 없음</span>
+                        )}
                       </div>
-                      <a
-                        href={team.contact.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "10px 14px",
-                          borderRadius: "10px",
-                          border: "1px solid #d1d5db",
-                          backgroundColor: "#ffffff",
-                          color: "#374151",
-                          fontWeight: "bold",
-                          textDecoration: "none",
-                        }}
-                      >
-                        공개 연락 링크
-                      </a>
-                    </div>
-                  ) : null}
 
-                  {canManage ? (
-                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-                      <button
-                        type="button"
-                        onClick={() => handleEditTeam(team.teamCode)}
-                        style={{
-                          padding: "10px 14px",
-                          borderRadius: "10px",
-                          border: "1px solid #d1d5db",
-                          backgroundColor: "#fff",
-                          color: "#374151",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                        }}
-                      >
-                        수정
-                      </button>
+                      <p style={{ margin: 0, color: "#374151", fontSize: "14px", lineHeight: 1.65 }}>{team.intro}</p>
 
-                      <button
-                        type="button"
-                        onClick={() => handleToggleTeamOpen(team.teamCode, !team.isOpen)}
-                        style={{
-                          padding: "10px 14px",
-                          borderRadius: "10px",
-                          border: "none",
-                          backgroundColor: team.isOpen ? "#111827" : "#2563eb",
-                          color: "#fff",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {team.isOpen ? "모집 마감" : "모집 재오픈"}
-                      </button>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+                        <div style={{ display: "grid", gap: "6px" }}>
+                          <div className="muted" style={{ fontSize: "12px" }}>등록일 {formatDate(team.createdAt)}</div>
+                          {team.contact.url ? (
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                              <span className="muted" style={{ fontSize: "12px" }}>팀장이 공개한 연락 링크입니다.</span>
+                              <a
+                                href={team.contact.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-secondary"
+                                style={{ textDecoration: "none" }}
+                              >
+                                공개 연락 링크
+                              </a>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="inline-actions" style={{ justifyContent: "flex-end" }}>
+                          {canManage ? (
+                            <>
+                              <button type="button" onClick={() => handleEditTeam(team.teamCode)} className="btn btn-secondary">
+                                수정
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleTeamOpen(team.teamCode, !team.isOpen)}
+                                className={team.isOpen ? "btn btn-ghost" : "btn btn-primary"}
+                              >
+                                {team.isOpen ? "모집 마감" : "모집 재오픈"}
+                              </button>
+                            </>
+                          ) : (
+                            <button type="button" onClick={() => handleOpenMessageModal(team)} className="btn btn-primary">
+                              쪽지 보내기
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenMessageModal(team)}
-                        style={{
-                          padding: "10px 14px",
-                          borderRadius: "10px",
-                          border: "none",
-                          backgroundColor: "#2563eb",
-                          color: "#fff",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                        }}
-                      >
-                        쪽지 보내기
-                      </button>
-                    </div>
-                  )}
-                </article>
-              );
-            })
-          ) : (
-            <StatePanel
-              kind="empty"
-              compact
-              title="조건에 맞는 팀이 없습니다"
-              description="필터를 변경하거나 새 팀 모집글을 등록해 보세요."
-            />
-          )}
-        </div>
-      </section>
+                  </article>
+                );
+              })
+            ) : (
+              <StatePanel kind="empty" compact title="조건에 맞는 팀이 없습니다" description="필터를 변경하거나 새 팀 모집글을 등록해 보세요." />
+            )}
+          </div>
+        </section>
+      </div>
 
       {messageModalOpen && (
         <div

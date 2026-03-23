@@ -171,16 +171,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
   return (
     <button
       onClick={onClick}
-      style={{
-        padding: "12px 16px",
-        borderRadius: "14px",
-        border: active ? "1px solid #2563eb" : "1px solid #d1d5db",
-        background: active ? "#eff6ff" : "#ffffff",
-        color: active ? "#2563eb" : "#374151",
-        fontWeight: 800,
-        fontSize: "14px",
-        cursor: "pointer",
-      }}
+      className={`tab-button ${active ? "tab-button--active" : ""}`}
     >
       {children}
     </button>
@@ -189,16 +180,8 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode; }) {
   return (
-    <section
-      style={{
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
-        borderRadius: "24px",
-        padding: "28px",
-        boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
-      }}
-    >
-      <h2 style={{ margin: "0 0 18px", fontSize: "28px", fontWeight: 900, letterSpacing: "-0.02em" }}>{title}</h2>
+    <section className="section-card">
+      <h2 className="section-title" style={{ marginBottom: "14px" }}>{title}</h2>
       {children}
     </section>
   );
@@ -210,9 +193,9 @@ function StatCard({ label, value, tone = "default" }: { label: string; value: Re
     : { background: "#f8fafc", border: "#e5e7eb", color: "#111827" };
 
   return (
-    <div style={{ borderRadius: "18px", background: palette.background, border: `1px solid ${palette.border}`, padding: "18px" }}>
-      <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>{label}</div>
-      <div style={{ fontSize: "20px", fontWeight: 900, color: palette.color }}>{value}</div>
+    <div className="metric-card" style={{ background: palette.background, borderColor: palette.border }}>
+      <div className="metric-label">{label}</div>
+      <div className="metric-value" style={{ color: palette.color }}>{value}</div>
     </div>
   );
 }
@@ -297,6 +280,17 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   const allowSolo = details?.sections.overview?.teamPolicy?.allowSolo;
   const quickLinks = details?.sections.info?.links;
   const notices = details?.sections.info?.notice ?? [];
+  const scheduleMilestones = useMemo(
+    () =>
+      [...(details?.sections.schedule?.milestones ?? [])].sort(
+        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+      ),
+    [details]
+  );
+  const nextMilestone = useMemo(
+    () => scheduleMilestones.find((milestone) => new Date(milestone.at).getTime() >= Date.now()) ?? null,
+    [scheduleMilestones]
+  );
   const submissionItems = useMemo(
     () => (details?.sections.submit?.submissionItems ?? []) as SubmissionItem[],
     [details]
@@ -566,46 +560,47 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   }
 
   return (
-    <main style={{ maxWidth: "1180px", margin: "0 auto", padding: "24px 20px 72px" }}>
-      <div style={{ marginBottom: "18px" }}>
-        <Link href="/hackathons" style={{ display: "inline-flex", alignItems: "center", gap: "8px", color: "#2563eb", fontWeight: 800, fontSize: "15px" }}>
+    <main className="page-shell">
+      <div style={{ marginBottom: "14px" }}>
+        <Link href="/hackathons" style={{ display: "inline-flex", alignItems: "center", gap: "8px", color: "#2563eb", fontWeight: 800, fontSize: "14px" }}>
           해커톤 목록으로 돌아가기
         </Link>
       </div>
 
-      <section style={{ position: "relative", overflow: "hidden", borderRadius: "32px", padding: "40px 36px", background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #3b82f6 100%)", color: "#ffffff", boxShadow: "0 24px 60px rgba(30, 58, 138, 0.22)", marginBottom: "24px" }}>
-        <div style={{ position: "absolute", right: "-40px", top: "-30px", width: "220px", height: "220px", borderRadius: "999px", background: "rgba(255,255,255,0.08)" }} />
-        <div style={{ position: "relative", zIndex: 1 }}>
+      <section className="page-hero page-hero--dark" style={{ marginBottom: "18px", padding: "24px" }}>
+        <div style={{ display: "grid", gap: "14px" }}>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "16px" }}>
-            <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", fontSize: "13px", fontWeight: 800, background: statusStyle.backgroundColor, color: statusStyle.color }}>{getStatusText(hackathon.status)}</span>
-            <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", fontSize: "13px", fontWeight: 700, background: "rgba(255,255,255,0.12)", color: "#ffffff", border: "1px solid rgba(255,255,255,0.16)" }}>{hackathon.period.timezone}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", minHeight: "28px", padding: "0 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 800, background: statusStyle.backgroundColor, color: statusStyle.color }}>{getStatusText(hackathon.status)}</span>
+            <span className="chip">{hackathon.period.timezone}</span>
           </div>
 
-          <h1 style={{ margin: "0 0 16px", fontSize: "42px", lineHeight: 1.18, fontWeight: 900, letterSpacing: "-0.03em", maxWidth: "860px" }}>{hackathon.title}</h1>
-          <p style={{ margin: "0 0 18px", maxWidth: "760px", lineHeight: 1.8, fontSize: "17px", color: "rgba(255,255,255,0.9)" }}>{details?.sections.overview?.summary ?? "상세 안내가 아직 준비되지 않았습니다."}</p>
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "18px" }}>
+          <h1 style={{ margin: "0 0 10px", fontSize: "32px", lineHeight: 1.18, fontWeight: 800, letterSpacing: "-0.03em", maxWidth: "760px" }}>{hackathon.title}</h1>
+          <p style={{ margin: "0", maxWidth: "760px", lineHeight: 1.7, fontSize: "15px", color: "rgba(255,255,255,0.9)" }}>{details?.sections.overview?.summary ?? "상세 안내가 아직 준비되지 않았습니다."}</p>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             {hackathon.tags.map((tag) => (
-              <span key={tag} style={{ display: "inline-block", padding: "7px 11px", borderRadius: "999px", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.16)", color: "#ffffff", fontSize: "12px", fontWeight: 700 }}>#{tag}</span>
+              <span key={tag} className="tag-chip">#{tag}</span>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px" }}>
-            <div style={{ borderRadius: "18px", padding: "16px 18px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)" }}>
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>제출 마감</div>
-              <div style={{ fontSize: "18px", fontWeight: 900 }}>{formatDate(hackathon.period.submissionDeadlineAt)}</div>
-            </div>
-            <div style={{ borderRadius: "18px", padding: "16px 18px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)" }}>
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>종료일</div>
-              <div style={{ fontSize: "18px", fontWeight: 900 }}>{formatDate(hackathon.period.endAt)}</div>
-            </div>
-            <div style={{ borderRadius: "18px", padding: "16px 18px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.14)" }}>
-              <div style={{ fontSize: "12px", opacity: 0.82, marginBottom: "6px" }}>팀 인원</div>
-              <div style={{ fontSize: "18px", fontWeight: 900 }}>최대 {maxTeamSize}명</div>
-            </div>
+          <div className="hero-meta" style={{ marginTop: 0 }}>
+            <span>제출 마감 {formatDate(hackathon.period.submissionDeadlineAt)}</span>
+            <span>종료 {formatDate(hackathon.period.endAt)}</span>
+            <span>최대 팀 인원 {maxTeamSize}명</span>
+          </div>
+          <div className="hero-actions" style={{ marginTop: "4px" }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setActiveTab("submit")}>
+              Submit 보기
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => setActiveTab("teams")}>
+              팀 보기
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => setActiveTab("leaderboard")}>
+              리더보드 보기
+            </button>
           </div>
         </div>
       </section>
 
-      <section style={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "24px", padding: "18px", boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)", marginBottom: "24px" }}>
+      <section className="section-nav" style={{ marginBottom: "18px" }}>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>개요</TabButton>
           <TabButton active={activeTab === "evaluation"} onClick={() => setActiveTab("evaluation")}>평가</TabButton>
@@ -694,18 +689,58 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       )}
 
       {activeTab === "schedule" && (
-        <SectionCard title="Schedule">
-          {details?.sections.schedule?.milestones && details.sections.schedule.milestones.length > 0 ? (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {details.sections.schedule.milestones.map((milestone) => (
-                <div key={`${milestone.name}-${milestone.at}`} style={{ display: "flex", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", alignItems: "center", borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px 18px" }}>
-                  <div style={{ fontWeight: 800, color: "#111827" }}>{milestone.name}</div>
-                  <div style={{ color: "#6b7280", fontWeight: 700 }}>{formatDate(milestone.at)}</div>
+        <SectionCard title="일정">
+          {scheduleMilestones.length > 0 ? (
+            <div className="stack-md">
+              {nextMilestone ? (
+                <div
+                  style={{
+                    borderRadius: "16px",
+                    border: "1px solid #bfdbfe",
+                    background: "#f8fbff",
+                    padding: "16px 18px",
+                  }}
+                >
+                  <div style={{ color: "#2563eb", fontSize: "12px", fontWeight: 800, marginBottom: "6px" }}>
+                    다가오는 마감
+                  </div>
+                  <div style={{ color: "#0f172a", fontSize: "18px", fontWeight: 800, marginBottom: "4px" }}>
+                    {nextMilestone.name}
+                  </div>
+                  <div className="muted">{formatDate(nextMilestone.at)}</div>
                 </div>
-              ))}
+              ) : null}
+
+              <div className="timeline">
+                {scheduleMilestones.map((milestone) => {
+                  const isUpcoming = new Date(milestone.at).getTime() >= Date.now();
+
+                  return (
+                    <div
+                      key={`${milestone.name}-${milestone.at}`}
+                      className={`timeline-item ${isUpcoming ? "timeline-item--active" : ""}`}
+                      style={{ padding: "15px 16px", gridTemplateColumns: "auto minmax(0, 1fr) auto" }}
+                    >
+                      <div className="timeline-dot" style={{ width: "12px", height: "12px", marginTop: "6px" }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", marginBottom: "4px" }}>{milestone.name}</div>
+                        <div className="muted" style={{ fontSize: "13px", lineHeight: 1.6 }}>
+                          {isUpcoming ? "예정된 일정입니다." : "완료된 일정입니다."}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", display: "grid", gap: "8px", justifyItems: "end" }}>
+                        <span className={isUpcoming ? "status-chip status-chip--pending" : "chip"}>
+                          {isUpcoming ? "예정" : "완료"}
+                        </span>
+                        <div className="muted" style={{ fontSize: "13px", fontWeight: 700 }}>{formatDate(milestone.at)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
-            <p style={{ margin: 0, color: "#6b7280" }}>Schedule information is not available.</p>
+            <p style={{ margin: 0, color: "#6b7280" }}>일정 정보가 아직 준비되지 않았습니다.</p>
           )}
         </SectionCard>
       )}

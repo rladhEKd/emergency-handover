@@ -1,9 +1,8 @@
-import styles from "./page.module.css";
 import Link from "next/link";
 import hackathonsData from "../data/public_hackathons.json";
 import teamsData from "../data/public_teams.json";
 import leaderboardData from "../data/public_leaderboard.json";
-import HomeStatsCards from "./HomeStatsCards";
+import styles from "./page.module.css";
 
 type Hackathon = {
   slug: string;
@@ -11,6 +10,7 @@ type Hackathon = {
   status: "ended" | "ongoing" | "upcoming";
   tags: string[];
   period: {
+    startAt?: string;
     submissionDeadlineAt: string;
     endAt: string;
   };
@@ -21,13 +21,10 @@ type Team = {
   hackathonSlug: string;
   name: string;
   isOpen: boolean;
-  memberCount: number;
   lookingFor: string[];
-  intro: string;
 };
 
 type LeaderboardEntry = {
-  rank: number;
   teamName: string;
   score: number;
 };
@@ -43,26 +40,21 @@ type LeaderboardData = Leaderboard & {
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString("ko-KR", {
-    year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
 }
 
-function getStatusLabel(status: Hackathon["status"]) {
+function getStatusText(status: Hackathon["status"]) {
   if (status === "ongoing") return "진행중";
   if (status === "upcoming") return "예정";
   return "종료";
 }
 
-function getStatusStyle(status: Hackathon["status"]) {
-  if (status === "ongoing") {
-    return { backgroundColor: "#e8f7ea", color: "#1f7a35" };
-  }
-  if (status === "upcoming") {
-    return { backgroundColor: "#eaf2ff", color: "#2457c5" };
-  }
-  return { backgroundColor: "#f3f4f6", color: "#4b5563" };
+function getStatusClass(status: Hackathon["status"]) {
+  if (status === "ongoing") return "status-chip status-chip--ongoing";
+  if (status === "upcoming") return "status-chip status-chip--upcoming";
+  return "status-chip status-chip--ended";
 }
 
 function getHackathonTitle(slug: string) {
@@ -83,242 +75,145 @@ export default function HomePage() {
   const teams = teamsData as Team[];
   const leaderboard = leaderboardData as LeaderboardData;
 
-  const recentHackathons = hackathons.slice(0, 3);
-  const openTeams = teams.filter((team) => team.isOpen).slice(0, 2);
-
-  const allBoards: Leaderboard[] = [
-    {
-      hackathonSlug: leaderboard.hackathonSlug,
-      entries: leaderboard.entries,
-    },
+  const allLeaderboards: Leaderboard[] = [
+    { hackathonSlug: leaderboard.hackathonSlug, entries: leaderboard.entries },
     ...(leaderboard.extraLeaderboards ?? []),
   ];
 
-  const topTeams = allBoards
+  const recentHackathons = hackathons.slice(0, 3);
+  const openTeams = teams.filter((team) => team.isOpen).slice(0, 3);
+  const topBoards = allLeaderboards
     .map((board) => ({
-      hackathonSlug: board.hackathonSlug,
-      entry: board.entries[0],
+      slug: board.hackathonSlug,
+      winner: board.entries[0],
     }))
-    .filter((item) => item.entry)
-    .slice(0, 2);
+    .filter((item) => item.winner)
+    .slice(0, 3);
 
   return (
-    <main
-      style={{
-        maxWidth: "1180px",
-        margin: "0 auto",
-        padding: "24px 20px 72px",
-      }}
-    >
-      <section
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          borderRadius: "32px",
-          padding: "52px 40px 40px",
-          background:
-            "linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #3b82f6 100%)",
-          color: "#ffffff",
-          boxShadow: "0 24px 60px rgba(30, 58, 138, 0.25)",
-          marginBottom: "28px",
-        }}
-      >
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              borderRadius: "999px",
-              padding: "8px 14px",
-              background: "rgba(255,255,255,0.12)",
-              border: "1px solid rgba(255,255,255,0.16)",
-              fontSize: "13px",
-              fontWeight: 800,
-              marginBottom: "18px",
-            }}
-          >
-            해커톤 플랫폼
-          </div>
+    <main className={styles.page}>
+      <section className={styles.hero}>
+        <div className={styles.heroHead}>
+          <h1 className={styles.heroTitle}>Hackathon Hub</h1>
+          <p className={styles.heroCopy}>해커톤 보기, 팀원 모집, 랭킹 확인을 바로 시작할 수 있습니다.</p>
+        </div>
 
-          <h1
-            style={{
-              margin: "0 0 16px",
-              fontSize: "42px",
-              lineHeight: 1.14,
-              fontWeight: 900,
-              maxWidth: "640px",
-            }}
-          >
-            Hackathon Hub
-          </h1>
-
-          <p
-            style={{
-              margin: 0,
-              maxWidth: "640px",
-              fontSize: "17px",
-              lineHeight: 1.7,
-              color: "rgba(255,255,255,0.9)",
-            }}
-          >
-            다양한 해커톤을 살펴보고 팀을 구하거나 랭킹을 확인할 수 있는 서비스입니다.
-            <br />
-            관심 있는 해커톤에 빠르게 참여해 보세요.
-          </p>
-
-          <HomeStatsCards
-            publicHackathonCount={hackathons.length}
-            publicOpenTeamCount={teams.filter((team) => team.isOpen).length}
-            publicRankingCount={allBoards.length}
-          />
+        <div className={styles.heroActions}>
+          <Link href="/hackathons" className="btn btn-secondary">
+            해커톤 보기
+          </Link>
+          <Link href="/camp" className="btn btn-secondary">
+            팀원 모집
+          </Link>
+          <Link href="/rankings" className="btn btn-secondary">
+            랭킹 보기
+          </Link>
         </div>
       </section>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.25fr 0.95fr",
-          gap: "20px",
-        }}
-      >
-        <div
-          className={styles.sectionPanel}
-          style={{
-            background: "#ffffff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "28px",
-            padding: "28px",
-          }}
-        >
-          <h2 style={{ margin: "0 0 18px", fontSize: "26px", fontWeight: 900 }}>
-            최근 해커톤
-          </h2>
-
-          <div style={{ display: "grid", gap: "14px" }}>
-            {recentHackathons.map((hackathon) => (
-              <Link
-                key={hackathon.slug}
-                href={`/hackathons/${hackathon.slug}`}
-                className={styles.contentCardLink}
-              >
-                <article
-                  style={{
-                    border: "1px solid #edf0f5",
-                    background: "#fbfcfe",
-                    borderRadius: "20px",
-                    padding: "20px",
-                  }}
-                >
-                  <span
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: "999px",
-                      fontSize: "12px",
-                      fontWeight: 800,
-                      ...getStatusStyle(hackathon.status),
-                    }}
-                  >
-                    {getStatusLabel(hackathon.status)}
-                  </span>
-
-                  <h3 style={{ margin: "12px 0", fontSize: "20px", fontWeight: 900 }}>
-                    {hackathon.title}
-                  </h3>
-
-                  <p style={{ margin: 0, color: "#6b7280" }}>
-                    제출 마감: {formatDate(hackathon.period.submissionDeadlineAt)}
-                  </p>
-                </article>
+      <div className={styles.homeGrid}>
+        {recentHackathons.length > 0 ? (
+          <section className={styles.primarySection}>
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle}>최근 해커톤</h2>
+              <Link href="/hackathons" className={styles.sectionLink}>
+                전체 보기
               </Link>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        <div style={{ display: "grid", gap: "20px" }}>
-          <div
-            className={styles.sectionPanel}
-            style={{
-              background: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "28px",
-              padding: "24px",
-            }}
-          >
-            <h2 style={{ margin: "0 0 18px", fontSize: "26px", fontWeight: 900 }}>
-              모집 중인 팀
-            </h2>
-
-            <div style={{ display: "grid", gap: "12px" }}>
-              {openTeams.map((team) => (
-                <Link
-                  key={team.teamCode}
-                  href={`/camp?hackathon=${team.hackathonSlug}`}
-                  className={styles.contentCardLink}
-                >
-                  <article
-                    style={{
-                      borderRadius: "18px",
-                      padding: "18px",
-                      background: "#fbfcfe",
-                      border: "1px solid #edf0f5",
-                    }}
-                  >
-                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 900 }}>
-                      {team.name}
-                    </h3>
-                    <p style={{ margin: "6px 0 0", color: "#6b7280" }}>
-                      {getHackathonTitle(team.hackathonSlug)}
-                    </p>
+            <div className={styles.cardList}>
+              {recentHackathons.map((hackathon) => (
+                <Link key={hackathon.slug} href={`/hackathons/${hackathon.slug}`} className={`interactive-card ${styles.cardLink}`}>
+                  <article className={styles.hackathonCard}>
+                    <div className={styles.cardTopRow}>
+                      <span className={getStatusClass(hackathon.status)}>{getStatusText(hackathon.status)}</span>
+                      <span className={styles.metaText}>마감 {formatDate(hackathon.period.submissionDeadlineAt)}</span>
+                    </div>
+                    <h3 className={styles.cardTitle}>{hackathon.title}</h3>
+                    <div className={styles.tagRow}>
+                      {hackathon.tags.slice(0, 3).map((tag) => (
+                        <span key={tag} className="tag-chip">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                    <div className={styles.metaRow}>
+                      {hackathon.period.startAt ? <span>시작 {formatDate(hackathon.period.startAt)}</span> : null}
+                      <span>종료 {formatDate(hackathon.period.endAt)}</span>
+                    </div>
                   </article>
                 </Link>
               ))}
             </div>
-          </div>
+          </section>
+        ) : null}
 
-          <div
-            className={styles.sectionPanel}
-            style={{
-              background: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "28px",
-              padding: "24px",
-            }}
-          >
-            <h2 style={{ margin: "0 0 18px", fontSize: "26px", fontWeight: 900 }}>
-              랭킹 미리보기
-            </h2>
-
-            <div style={{ display: "grid", gap: "12px" }}>
-              {topTeams.map((item) => (
-                <Link
-                  key={item.hackathonSlug}
-                  href="/rankings"
-                  className={styles.contentCardLink}
-                >
-                  <article
-                    style={{
-                      borderRadius: "18px",
-                      padding: "18px",
-                      background: "#fbfcfe",
-                      border: "1px solid #edf0f5",
-                    }}
-                  >
-                    <p style={{ margin: "0 0 6px", color: "#2563eb", fontWeight: 800 }}>
-                      {getHackathonTitle(item.hackathonSlug)}
-                    </p>
-                    <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 900 }}>
-                      1위 {item.entry.teamName}
-                    </h3>
-                    <p style={{ margin: 0, color: "#6b7280" }}>
-                      점수 {item.entry.score}
-                    </p>
-                  </article>
+        <div className={styles.sideStack}>
+          {openTeams.length > 0 ? (
+            <section className={styles.compactSection}>
+              <div className={styles.sectionHead}>
+                <h2 className={styles.sectionTitle}>모집중인 팀</h2>
+                <Link href="/camp" className={styles.sectionLink}>
+                  이동
                 </Link>
-              ))}
-            </div>
-          </div>
+              </div>
+
+              <div className={styles.cardList}>
+                {openTeams.map((team) => (
+                  <Link
+                    key={team.teamCode}
+                    href={team.hackathonSlug ? `/camp?hackathon=${team.hackathonSlug}` : "/camp"}
+                    className={`interactive-card ${styles.cardLink}`}
+                  >
+                    <article className={styles.compactCard}>
+                      <div className={styles.cardTopRow}>
+                        <strong className={styles.compactTitle}>{team.name}</strong>
+                        <span className="status-chip status-chip--open">모집중</span>
+                      </div>
+                      <p className={styles.metaText}>
+                        {team.hackathonSlug ? getHackathonTitle(team.hackathonSlug) : "연결된 해커톤 없음"}
+                      </p>
+                      <div className={styles.tagRow}>
+                        {team.lookingFor.slice(0, 3).map((role) => (
+                          <span key={role} className="tag-chip">
+                            {role}
+                          </span>
+                        ))}
+                      </div>
+                    </article>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {topBoards.length > 0 ? (
+            <section className={styles.compactSection}>
+              <div className={styles.sectionHead}>
+                <h2 className={styles.sectionTitle}>리더보드</h2>
+                <Link href="/rankings" className={styles.sectionLink}>
+                  이동
+                </Link>
+              </div>
+
+              <div className={styles.cardList}>
+                {topBoards.map((item, index) => (
+                  <Link key={item.slug} href="/rankings" className={`interactive-card ${styles.cardLink}`}>
+                    <article className={styles.compactCard}>
+                      <div className={styles.cardTopRow}>
+                        <span className="chip">{index + 1}위</span>
+                        <span className={styles.metaText}>{getHackathonTitle(item.slug)}</span>
+                      </div>
+                      <strong className={styles.compactTitle}>{item.winner.teamName}</strong>
+                      <p className={styles.metaText}>점수 {item.winner.score}</p>
+                    </article>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
-      </section>
+      </div>
     </main>
   );
 }

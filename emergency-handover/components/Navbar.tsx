@@ -38,134 +38,37 @@ export default function Navbar() {
   }
 
   return (
-    <header
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
-        background: "rgba(255,255,255,0.85)",
-        backdropFilter: "blur(10px)",
-        borderBottom: "1px solid #e5e7eb",
-      }}
-    >
+    <header className={styles.header}>
       <Container>
-        <div
-          style={{
-            minHeight: "72px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "16px",
-            flexWrap: "wrap",
-            padding: "0 100px",
-          }}
-        >
-          <Link
-            href="/"
-            className={styles.logo}
-            style={{
-              fontSize: "22px",
-              fontWeight: 900,
-              color: "#111827",
-              textDecoration: "none",
-            }}
-          >
-            Hackathon Hub
+        <div className={styles.bar}>
+          <Link href="/" className={styles.brand}>
+            <span className={styles.logo}>Hackathon Hub</span>
           </Link>
 
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-            <nav
-              style={{
-                display: "flex",
-                gap: "10px",
-                flexWrap: "wrap",
-              }}
-            >
+          <div className={styles.navWrap}>
+            <nav className={styles.nav}>
               {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={styles.navItem}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    color: "#374151",
-                    fontWeight: 700,
-                    fontSize: "14px",
-                    textDecoration: "none",
-                  }}
-                >
+                <Link key={item.href} href={item.href} className={styles.navItem}>
                   {item.label}
                 </Link>
               ))}
             </nav>
 
             {nickname ? (
-              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <Link
-                  href="/dashboard"
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    background: "#f8fafc",
-                    border: "1px solid #e5e7eb",
-                    color: "#111827",
-                    fontWeight: 800,
-                    fontSize: "14px",
-                    textDecoration: "none",
-                    display: "inline-flex",
-                    alignItems: "center",
-                  }}
-                >
+              <div className={styles.actions}>
+                <Link href="/dashboard" className={styles.nickname}>
                   {nickname}
                 </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    border: "1px solid #d1d5db",
-                    background: "#ffffff",
-                    color: "#374151",
-                    fontWeight: 700,
-                    fontSize: "14px",
-                    cursor: "pointer",
-                  }}
-                >
+                <button type="button" onClick={handleLogout} className={styles.logout}>
                   Logout
                 </button>
               </div>
             ) : (
-              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-                <Link
-                  href="/auth?mode=login"
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    color: "#374151",
-                    fontWeight: 700,
-                    fontSize: "14px",
-                    textDecoration: "none",
-                    border: "1px solid #d1d5db",
-                    background: "#ffffff",
-                  }}
-                >
+              <div className={styles.actions}>
+                <Link href="/auth?mode=login" className={styles.authLink}>
                   Login
                 </Link>
-                <Link
-                  href="/auth?mode=signup"
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    color: "#ffffff",
-                    fontWeight: 700,
-                    fontSize: "14px",
-                    textDecoration: "none",
-                    border: "1px solid #2563eb",
-                    background: "#2563eb",
-                  }}
-                >
+                <Link href="/auth?mode=signup" className={`${styles.authLink} ${styles.authLinkPrimary}`}>
                   회원가입
                 </Link>
               </div>

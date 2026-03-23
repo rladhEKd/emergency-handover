@@ -52,77 +52,38 @@ export default function HomeStatsCards({
     };
   }, [publicOpenTeamCount]);
 
+  const items = [
+    {
+      href: "/hackathons",
+      label: "해커톤",
+      value: publicHackathonCount,
+      description: "현재 열려 있는 해커톤과 마감 일정을 확인합니다.",
+    },
+    {
+      href: "/camp",
+      label: "모집중인 팀",
+      value: openTeamCount,
+      description: "지금 참여할 수 있는 팀 모집글을 빠르게 찾습니다.",
+    },
+    {
+      href: "/rankings",
+      label: "랭킹",
+      value: publicRankingCount,
+      description: "글로벌 랭킹과 해커톤별 리더보드를 확인합니다.",
+    },
+  ];
+
   return (
-    <div
-      style={{
-        marginTop: "26px",
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: "14px",
-      }}
-    >
-      <Link
-        href="/hackathons"
-        className={styles.heroStatLink}
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div
-          style={{
-            borderRadius: "18px",
-            padding: "18px",
-            background: "rgba(255,255,255,0.1)",
-            border: "1px solid rgba(255,255,255,0.14)",
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ fontSize: "13px", opacity: 0.85 }}>해커톤</div>
-          <div style={{ fontSize: "28px", fontWeight: 900 }}>
-            {publicHackathonCount}
+    <div className={styles.homeStatsGrid}>
+      {items.map((item) => (
+        <Link key={item.href} href={item.href} className={`interactive-card ${styles.heroStatLink}`}>
+          <div className={styles.heroStatCard}>
+            <span className={styles.heroStatLabel}>{item.label}</span>
+            <strong className={styles.heroStatValue}>{item.value}</strong>
+            <span className={styles.heroStatCopy}>{item.description}</span>
           </div>
-        </div>
-      </Link>
-
-      <Link
-        href="/camp"
-        className={styles.heroStatLink}
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div
-          style={{
-            borderRadius: "18px",
-            padding: "18px",
-            background: "rgba(255,255,255,0.1)",
-            border: "1px solid rgba(255,255,255,0.14)",
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ fontSize: "13px", opacity: 0.85 }}>모집 중인 팀</div>
-          <div style={{ fontSize: "28px", fontWeight: 900 }}>
-            {openTeamCount}
-          </div>
-        </div>
-      </Link>
-
-      <Link
-        href="/rankings"
-        className={styles.heroStatLink}
-        style={{ textDecoration: "none", color: "inherit" }}
-      >
-        <div
-          style={{
-            borderRadius: "18px",
-            padding: "18px",
-            background: "rgba(255,255,255,0.1)",
-            border: "1px solid rgba(255,255,255,0.14)",
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ fontSize: "13px", opacity: 0.85 }}>랭킹</div>
-          <div style={{ fontSize: "28px", fontWeight: 900 }}>
-            {publicRankingCount}
-          </div>
-        </div>
-      </Link>
+        </Link>
+      ))}
     </div>
   );
 }

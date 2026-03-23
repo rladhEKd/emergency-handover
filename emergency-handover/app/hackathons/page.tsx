@@ -34,14 +34,10 @@ function getStatusLabel(status: Hackathon["status"]) {
   return "종료";
 }
 
-function getStatusStyle(status: Hackathon["status"]) {
-  if (status === "ongoing") {
-    return { backgroundColor: "#e8f7ea", color: "#1f7a35" };
-  }
-  if (status === "upcoming") {
-    return { backgroundColor: "#eaf2ff", color: "#2457c5" };
-  }
-  return { backgroundColor: "#f3f4f6", color: "#4b5563" };
+function getStatusClass(status: Hackathon["status"]) {
+  if (status === "ongoing") return "status-chip status-chip--ongoing";
+  if (status === "upcoming") return "status-chip status-chip--upcoming";
+  return "status-chip status-chip--ended";
 }
 
 function sortHackathons(items: Hackathon[], sort: string) {
@@ -69,6 +65,56 @@ function sortHackathons(items: Hackathon[], sort: string) {
 
   return copied;
 }
+
+const cardStyle = {
+  padding: "18px",
+  display: "grid",
+  gap: "12px",
+} as const;
+
+const topRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+} as const;
+
+const titleStyle = {
+  margin: 0,
+  fontSize: "20px",
+  lineHeight: 1.3,
+  fontWeight: 800,
+  letterSpacing: "-0.02em",
+} as const;
+
+const metaGridStyle = {
+  display: "grid",
+  gap: "8px",
+} as const;
+
+const metaRowStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "12px",
+  color: "#64748b",
+  fontSize: "13px",
+  lineHeight: 1.6,
+} as const;
+
+const tagRowStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+} as const;
+
+const footerRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  paddingTop: "2px",
+} as const;
 
 export default function HackathonsPage() {
   const hackathons = Array.isArray(hackathonsData) ? (hackathonsData as Hackathon[]) : [];
@@ -107,386 +153,134 @@ export default function HackathonsPage() {
   }, [hackathons, search, statusFilter, selectedTag, sortOption]);
 
   return (
-    <main
-      style={{
-        maxWidth: "1180px",
-        margin: "0 auto",
-        padding: "24px 20px 72px",
-      }}
-    >
-      <section
-        style={{
-          borderRadius: "28px",
-          padding: "36px 32px",
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fbff 100%)",
-          border: "1px solid #e5e7eb",
-          boxShadow: "0 16px 40px rgba(15, 23, 42, 0.05)",
-          marginBottom: "24px",
-        }}
-      >
-        <p
-          style={{
-            margin: "0 0 10px",
-            fontSize: "13px",
-            fontWeight: 800,
-            color: "#2563eb",
-            letterSpacing: "0.04em",
-          }}
-        >
-          해커톤 목록
-        </p>
+    <main className="page-shell">
+      <div className="page-stack">
+        <section className="page-hero page-hero--dark">
+          <span className="eyebrow">Hackathons</span>
+          <h1 className="hero-title">참여할 해커톤을 빠르게 찾고 일정과 상태를 비교하세요.</h1>
+          <p className="hero-description">상태, 태그, 마감일 기준으로 필요한 해커톤만 바로 추려 볼 수 있습니다.</p>
+        </section>
 
-        <h1
-          style={{
-            margin: "0 0 12px",
-            fontSize: "40px",
-            lineHeight: 1.15,
-            fontWeight: 900,
-            letterSpacing: "-0.03em",
-          }}
-        >
-          해커톤 둘러보기
-        </h1>
-
-        <p
-          style={{
-            margin: 0,
-            maxWidth: "720px",
-            color: "#6b7280",
-            lineHeight: 1.7,
-            fontSize: "16px",
-          }}
-        >
-          진행중, 예정, 종료 상태의 해커톤을 확인하고 상태와 태그 기준으로 빠르게 찾아보세요.
-        </p>
-      </section>
-
-      <section
-        style={{
-          background: "#ffffff",
-          border: "1px solid #e5e7eb",
-          borderRadius: "24px",
-          padding: "22px",
-          boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
-          marginBottom: "24px",
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.2fr 0.8fr 0.8fr 0.8fr",
-            gap: "14px",
-            alignItems: "end",
-          }}
-        >
-          <div>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontSize: "14px",
-                fontWeight: 800,
-                color: "#374151",
+        <section className="form-shell">
+          <div className="section-header">
+            <div>
+              <h2 className="section-title">필터와 정렬</h2>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+                setSelectedTag("all");
+                setSortOption("deadline-asc");
               }}
             >
-              검색
-            </label>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="해커톤 이름 또는 태그 검색"
-              style={{
-                width: "100%",
-                height: "48px",
-                padding: "0 14px",
-                borderRadius: "14px",
-                border: "1px solid #d1d5db",
-                outline: "none",
-                fontSize: "15px",
-                background: "#fbfcfe",
-              }}
-            />
+              필터 초기화
+            </button>
           </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontSize: "14px",
-                fontWeight: 800,
-                color: "#374151",
-              }}
-            >
-              상태
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{
-                width: "100%",
-                height: "48px",
-                padding: "0 14px",
-                borderRadius: "14px",
-                border: "1px solid #d1d5db",
-                background: "#fbfcfe",
-                fontSize: "15px",
-              }}
-            >
-              <option value="all">전체</option>
-              <option value="ongoing">진행중</option>
-              <option value="upcoming">예정</option>
-              <option value="ended">종료</option>
-            </select>
+          <div className="toolbar">
+            <div className="field">
+              <label htmlFor="hackathon-search">검색</label>
+              <input
+                id="hackathon-search"
+                className="input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="해커톤 이름 또는 태그를 입력해 주세요"
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="hackathon-status">상태</label>
+              <select id="hackathon-status" className="select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="all">전체</option>
+                <option value="ongoing">진행중</option>
+                <option value="upcoming">예정</option>
+                <option value="ended">종료</option>
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="hackathon-tag">태그</label>
+              <select id="hackathon-tag" className="select" value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)}>
+                <option value="all">전체</option>
+                {allTags.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="hackathon-sort">정렬</label>
+              <select id="hackathon-sort" className="select" value={sortOption} onChange={(e) => setSortOption(e.target.value)}>
+                <option value="deadline-asc">마감 임박순</option>
+                <option value="deadline-desc">마감 여유순</option>
+                <option value="title-asc">이름순</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontSize: "14px",
-                fontWeight: 800,
-                color: "#374151",
-              }}
-            >
-              태그
-            </label>
-            <select
-              value={selectedTag}
-              onChange={(e) => setSelectedTag(e.target.value)}
-              style={{
-                width: "100%",
-                height: "48px",
-                padding: "0 14px",
-                borderRadius: "14px",
-                border: "1px solid #d1d5db",
-                background: "#fbfcfe",
-                fontSize: "15px",
-              }}
-            >
-              <option value="all">전체</option>
-              {allTags.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
+          <div className="hero-meta">
+            <span>검색 결과 {filteredHackathons.length}개</span>
           </div>
+        </section>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontSize: "14px",
-                fontWeight: 800,
-                color: "#374151",
-              }}
-            >
-              정렬
-            </label>
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-              style={{
-                width: "100%",
-                height: "48px",
-                padding: "0 14px",
-                borderRadius: "14px",
-                border: "1px solid #d1d5db",
-                background: "#fbfcfe",
-                fontSize: "15px",
-              }}
-            >
-              <option value="deadline-asc">마감 임박순</option>
-              <option value="deadline-desc">마감 여유순</option>
-              <option value="title-asc">이름순</option>
-            </select>
-          </div>
-        </div>
-
-        <div
-          style={{
-            marginTop: "18px",
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "12px",
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <p style={{ margin: 0, color: "#6b7280", fontSize: "14px" }}>
-            총 <strong style={{ color: "#111827" }}>{filteredHackathons.length}</strong>개의 해커톤이 검색되었습니다.
-          </p>
-
-          <button
-            onClick={() => {
-              setSearch("");
-              setStatusFilter("all");
-              setSelectedTag("all");
-              setSortOption("deadline-asc");
-            }}
-            style={{
-              border: "1px solid #d1d5db",
-              background: "#ffffff",
-              color: "#374151",
-              borderRadius: "12px",
-              padding: "10px 14px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            필터 초기화
-          </button>
-        </div>
-      </section>
-
-      {hasDataError ? (
-        <StatePanel
-          kind="error"
-          title="데이터를 불러오는 중 문제가 발생했습니다"
-          description="해커톤 목록 데이터를 다시 확인해 주세요."
-        />
-      ) : filteredHackathons.length === 0 ? (
-        <StatePanel
-          kind="empty"
-          title="검색 결과가 없습니다"
-          description="검색어나 필터 조건을 바꿔서 다시 확인해 주세요."
-        />
-      ) : (
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: "20px",
-          }}
-        >
-          {filteredHackathons.map((hackathon) => (
-            <Link key={hackathon.slug} href={`/hackathons/${hackathon.slug}`}>
-              <article
-                style={{
-                  background: "#ffffff",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "24px",
-                  padding: "24px",
-                  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.05)",
-                  minHeight: "220px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  cursor: "pointer",
-                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: "12px",
-                      alignItems: "center",
-                      marginBottom: "14px",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "7px 11px",
-                        borderRadius: "999px",
-                        fontSize: "12px",
-                        fontWeight: 800,
-                        ...getStatusStyle(hackathon.status),
-                      }}
-                    >
-                      {getStatusLabel(hackathon.status)}
-                    </span>
-
-                    <span
-                      style={{
-                        color: "#6b7280",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {hackathon.period.timezone}
-                    </span>
+        {hasDataError ? (
+          <StatePanel
+            kind="error"
+            title="해커톤 목록을 불러오는 중 문제가 발생했습니다"
+            description="목록 데이터를 다시 확인해 주세요"
+          />
+        ) : filteredHackathons.length === 0 ? (
+          <StatePanel
+            kind="empty"
+            title="조건에 맞는 해커톤이 없습니다"
+            description="검색어나 필터 조건을 조정해 다시 확인해 주세요"
+          />
+        ) : (
+          <section className="card-grid">
+            {filteredHackathons.map((hackathon) => (
+              <Link key={hackathon.slug} href={`/hackathons/${hackathon.slug}`} className="interactive-card">
+                <article style={cardStyle}>
+                  <div style={topRowStyle}>
+                    <span className={getStatusClass(hackathon.status)}>{getStatusLabel(hackathon.status)}</span>
+                    <span className="chip">{hackathon.period.timezone}</span>
                   </div>
 
-                  <h2
-                    style={{
-                      margin: "0 0 14px",
-                      fontSize: "26px",
-                      lineHeight: 1.35,
-                      fontWeight: 900,
-                      letterSpacing: "-0.02em",
-                    }}
-                  >
-                    {hackathon.title}
-                  </h2>
+                  <div style={metaGridStyle}>
+                    <h2 style={titleStyle}>{hackathon.title}</h2>
+                    <div style={metaRowStyle}>
+                      <span>시작 {formatDate(hackathon.period.startAt)}</span>
+                      <span>종료 {formatDate(hackathon.period.endAt)}</span>
+                    </div>
+                    <div style={metaRowStyle}>
+                      <span>제출 마감 {formatDate(hackathon.period.submissionDeadlineAt)}</span>
+                      <span>참가자 {hackathon.participantCount}명</span>
+                    </div>
+                  </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "8px",
-                      marginBottom: "16px",
-                    }}
-                  >
+                  <div style={tagRowStyle}>
                     {hackathon.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        style={{
-                          display: "inline-block",
-                          padding: "7px 11px",
-                          borderRadius: "999px",
-                          background: "#eef4ff",
-                          color: "#2457c5",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                        }}
-                      >
+                      <span key={tag} className="tag-chip">
                         #{tag}
                       </span>
                     ))}
                   </div>
 
-                  <div style={{ display: "grid", gap: "8px" }}>
-                    <p style={{ margin: 0, color: "#6b7280", fontSize: "14px" }}>
-                      시작일 {formatDate(hackathon.period.startAt)}
-                    </p>
-                    <p style={{ margin: 0, color: "#6b7280", fontSize: "14px" }}>
-                      종료일 {formatDate(hackathon.period.endAt)}
-                    </p>
-                    <p style={{ margin: 0, color: "#6b7280", fontSize: "14px" }}>
-                      참가자 수 {hackathon.participantCount}
-                    </p>
+                  <div style={footerRowStyle}>
+                    <span className="muted">상세 보기</span>
+                    <span className="subtle-link">바로 이동</span>
                   </div>
-                </div>
-
-                <div
-                  style={{
-                    marginTop: "18px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "12px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div style={{ color: "#6b7280", fontSize: "14px" }}>
-                    제출 마감 {formatDate(hackathon.period.submissionDeadlineAt)}
-                  </div>
-                  <div style={{ color: "#2563eb", fontWeight: 800, fontSize: "14px" }}>
-                    상세 보기
-                  </div>
-                </div>
-              </article>
-            </Link>
-          ))}
-        </section>
-      )}
+                </article>
+              </Link>
+            ))}
+          </section>
+        )}
+      </div>
     </main>
   );
 }
