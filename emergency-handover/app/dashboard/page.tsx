@@ -372,11 +372,11 @@ export default function DashboardPage() {
         ) : (
           <>
             <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
-              <SummaryCard label="\uB0B4 \uD300" value={summary.myTeams} hint="\uCC38\uC5EC \uC911\uC778 \uD300\uC744 \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4." />
-              <SummaryCard label="\uBC1B\uC740 \uC694\uCCAD" value={summary.receivedRequests} hint={`\uB300\uAE30\uC911 ${pendingReceivedRequests}\uAC74`} />
-              <SummaryCard label="\uBCF4\uB0B8 \uC694\uCCAD" value={summary.sentRequests} hint={`\uC751\uB2F5 \uB300\uAE30 ${pendingSentRequests}\uAC74`} />
-              <SummaryCard label="\uBCF4\uB0B8 \uCABD\uC9C0" value={summary.sentMessages} hint="\uCD5C\uADFC \uBCF4\uB0B8 \uBA54\uC2DC\uC9C0\uB97C \uD655\uC778\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4." />
-              <SummaryCard label="\uC800\uC7A5\uD55C \uC81C\uCD9C" value={summary.savedSubmissions} hint="\uC81C\uCD9C\uD55C \uD56D\uBAA9\uACFC \uBA54\uBAA8\uB97C \uB2E4\uC2DC \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4." />
+              <SummaryCard label="내 팀" value={summary.myTeams} hint="참여 중인 팀을 확인할 수 있습니다." />
+              <SummaryCard label="받은 요청" value={summary.receivedRequests} hint={`대기중 ${pendingReceivedRequests}건`} />
+              <SummaryCard label="보낸 요청" value={summary.sentRequests} hint={`응답 대기 ${pendingSentRequests}건`} />
+              <SummaryCard label="보낸 쪽지" value={summary.sentMessages} hint="최근 보낸 메시지를 확인할 수 있습니다." />
+              <SummaryCard label="저장한 제출" value={summary.savedSubmissions} hint="제출한 항목과 메모를 다시 볼 수 있습니다." />
             </section>
 
             <SectionBlock title="받은 요청">
@@ -394,8 +394,8 @@ export default function DashboardPage() {
                           <span style={{ display: "inline-flex", alignItems: "center", minHeight: "26px", padding: "0 9px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "11px" }}>{badge.label}</span>
                         </div>
                         <div style={{ color: "#475569", fontSize: "13px" }}>{sanitizeNickname(request.requesterName || request.requesterId)}</div>
-                        <div style={{ color: "#64748b", fontSize: "12px" }}>{roleText ? `\uC9C0\uC6D0 \uD3EC\uC9C0\uC158 ${roleText}` : "\uC9C0\uC6D0 \uD3EC\uC9C0\uC158 \uBBF8\uC785\uB825"}</div>
-                        <div style={{ color: "#64748b", fontSize: "12px" }}>{`\uC0DD\uC131\uC77C ${formatDate(request.createdAt)}`}</div>
+                        <div style={{ color: "#64748b", fontSize: "12px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
+                        <div style={{ color: "#64748b", fontSize: "12px" }}>{`생성일 ${formatDate(request.createdAt)}`}</div>
                       </article>
                     );
                   })}

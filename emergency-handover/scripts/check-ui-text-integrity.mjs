@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+﻿import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
@@ -20,6 +20,11 @@ const suspiciousFragments = [
   "?\u315C",
   "?\uB8F7",
 ];
+const rawUnicodeEscapePattern = /\\u(?:\{[0-9a-fA-F]+\}|[0-9a-fA-F]{4})/;
+const strictRawEscapeTargets = new Set([
+  "app/dashboard/page.tsx",
+  "components/FloatingMessageHub.tsx",
+]);
 
 function walk(dir) {
   const entries = readdirSync(dir, { withFileTypes: true });
@@ -53,13 +58,18 @@ for (const target of targets) {
   for (const file of walk(fullTarget)) {
     const text = readFileSync(file, "utf8");
     const lines = text.split(/\r?\n/);
+    const relativeFile = path.relative(root, file).replace(/\\/g, "/");
 
     lines.forEach((line, index) => {
       for (const fragment of suspiciousFragments) {
         if (!line.includes(fragment)) continue;
         if (line.includes("normalized ===") || line.includes("suspiciousFragments")) continue;
-        findings.push(`${path.relative(root, file)}:${index + 1}: ${fragment}`);
+        findings.push(`${relativeFile}:${index + 1}: ${fragment}`);
         break;
+      }
+
+      if (strictRawEscapeTargets.has(relativeFile) && rawUnicodeEscapePattern.test(line)) {
+        findings.push(`${relativeFile}:${index + 1}: raw unicode escape`);
       }
     });
   }

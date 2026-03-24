@@ -63,7 +63,7 @@ function isBrokenSystemText(value: string | null | undefined) {
 }
 
 function sanitizeNickname(value: string | null | undefined) {
-  return isBrokenSystemText(value) ? "\uBA64\uBC84" : String(value).trim();
+  return isBrokenSystemText(value) ? "멤버" : String(value).trim();
 }
 
 function sanitizeRole(value: string | null | undefined) {
@@ -72,14 +72,14 @@ function sanitizeRole(value: string | null | undefined) {
 
 function getStatusBadge(status: "pending" | "accepted" | "rejected") {
   if (status === "accepted") {
-    return { label: "\uC218\uB77D\uB428", background: "#e8f7ea", color: "#1e7a35" };
+    return { label: "수락됨", background: "#e8f7ea", color: "#1e7a35" };
   }
 
   if (status === "rejected") {
-    return { label: "\uAC70\uC808\uB428", background: "#f3f4f6", color: "#4b5563" };
+    return { label: "거절됨", background: "#f3f4f6", color: "#4b5563" };
   }
 
-  return { label: "\uB300\uAE30\uC911", background: "#eef4ff", color: "#2457c5" };
+  return { label: "대기중", background: "#eef4ff", color: "#2457c5" };
 }
 
 function readTeams() {
@@ -257,7 +257,7 @@ export default function FloatingMessageHub() {
         setSentMessages(allMessages.filter((message) => normalizeUserId(message.senderUserId) === nextUserId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         setHubReady(true);
       } catch {
-        setHubError("MSG \uD5C8\uBE0C\uB97C \uBD88\uB7EC\uC624\uB294 \uC911 \uBB38\uC81C\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.");
+        setHubError("MSG 허브를 불러오는 중 문제가 발생했습니다.");
         setHubReady(true);
       }
     }
@@ -349,11 +349,11 @@ export default function FloatingMessageHub() {
 
   function renderRequestGroups(groups: Record<string, TeamJoinRequest[]>, emptyText: string, ownerView: boolean) {
     if (!hubReady) {
-      return <StatePanel kind="loading" compact title="\uBAA9\uB85D\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4" description="\uC7A0\uC2DC\uB9CC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694." />;
+      return <StatePanel kind="loading" compact title="목록을 불러오는 중입니다" description="잠시만 기다려 주세요." />;
     }
 
     if (hubError) {
-      return <StatePanel kind="error" compact title={hubError} description="\uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694." />;
+      return <StatePanel kind="error" compact title={hubError} description="다시 시도해 주세요." />;
     }
 
     const entries = Object.entries(groups);
@@ -375,16 +375,16 @@ export default function FloatingMessageHub() {
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 800, color: "#111827" }}>{ownerView ? sanitizeNickname(item.requesterName || item.requesterId) : teamsByCode[item.teamCode] || item.teamCode}</div>
-                        <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "4px" }}>{roleText ? `\uC9C0\uC6D0 \uD3EC\uC9C0\uC158 ${roleText}` : "\uC9C0\uC6D0 \uD3EC\uC9C0\uC158 \uBBF8\uC785\uB825"}</div>
+                        <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "4px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
                       </div>
                       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                         <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
                         <button type="button" onClick={() => setSelectedRequest({ item, ownerView })} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "8px 12px", borderRadius: "10px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
-                          \uC0C1\uC138 \uBCF4\uAE30
+                          상세 보기
                         </button>
                       </div>
                     </div>
-                    <div style={{ color: "#6b7280", fontSize: "13px" }}>{`\uC0DD\uC131\uC77C ${formatDate(item.createdAt)}`}</div>
+                    <div style={{ color: "#6b7280", fontSize: "13px" }}>{`생성일 ${formatDate(item.createdAt)}`}</div>
                   </div>
                 );
               })}
@@ -397,11 +397,11 @@ export default function FloatingMessageHub() {
 
   function renderMessageList(items: TeamMessage[], emptyText: string, type: "received" | "sent") {
     if (!hubReady) {
-      return <StatePanel kind="loading" compact title="\uBAA9\uB85D\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4" description="\uC7A0\uC2DC\uB9CC \uAE30\uB2E4\uB824 \uC8FC\uC138\uC694." />;
+      return <StatePanel kind="loading" compact title="목록을 불러오는 중입니다" description="잠시만 기다려 주세요." />;
     }
 
     if (hubError) {
-      return <StatePanel kind="error" compact title={hubError} description="\uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694." />;
+      return <StatePanel kind="error" compact title={hubError} description="다시 시도해 주세요." />;
     }
 
     if (items.length === 0) {
@@ -417,14 +417,14 @@ export default function FloatingMessageHub() {
                 <div style={{ fontWeight: 900, color: "#111827" }}>{item.title}</div>
                 <div style={{ color: "#6b7280", fontSize: "14px" }}>{teamsByCode[item.teamCode] || item.teamCode}</div>
                 <div style={{ color: "#374151", fontSize: "13px", marginTop: "6px" }}>
-                  {type === "received" ? `\uBCF4\uB0B8 \uC0AC\uB78C ${sanitizeNickname(item.senderNickname)}` : `\uBC1B\uB294 \uC0AC\uB78C ${sanitizeNickname(item.receiverNickname)}`}
+                  {type === "received" ? `보낸 사람 ${sanitizeNickname(item.senderNickname)}` : `받는 사람 ${sanitizeNickname(item.receiverNickname)}`}
                 </div>
               </div>
               <button type="button" onClick={() => setSelectedMessage(item)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "8px 12px", borderRadius: "10px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
-                \uC0C1\uC138 \uBCF4\uAE30
+                상세 보기
               </button>
             </div>
-            <div style={{ color: "#6b7280", fontSize: "13px" }}>{`\uC0DD\uC131\uC77C ${formatDate(item.createdAt)}`}</div>
+            <div style={{ color: "#6b7280", fontSize: "13px" }}>{`생성일 ${formatDate(item.createdAt)}`}</div>
           </div>
         ))}
       </div>
@@ -434,13 +434,13 @@ export default function FloatingMessageHub() {
   return (
     <>
       {open ? (
-        <button type="button" onClick={() => setOpen(false)} aria-label="\uD5C8\uBE0C \uB2EB\uAE30" style={{ position: "fixed", inset: 0, border: "none", background: "rgba(15, 23, 42, 0.18)", padding: 0, margin: 0, zIndex: 69, cursor: "pointer" }} />
+        <button type="button" onClick={() => setOpen(false)} aria-label="허브 닫기" style={{ position: "fixed", inset: 0, border: "none", background: "rgba(15, 23, 42, 0.18)", padding: 0, margin: 0, zIndex: 69, cursor: "pointer" }} />
       ) : null}
 
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        aria-label="MSG \uD5C8\uBE0C \uC5F4\uAE30"
+        aria-label="MSG 허브 열기"
         style={{ position: "fixed", right: "20px", bottom: "20px", width: "60px", height: "60px", borderRadius: "999px", border: "none", background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)", color: "#ffffff", fontWeight: 900, fontSize: "14px", boxShadow: "0 18px 40px rgba(37, 99, 235, 0.35)", cursor: "pointer", zIndex: 70 }}
       >
         MSG
@@ -457,10 +457,10 @@ export default function FloatingMessageHub() {
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center" }}>
               <div style={{ display: "grid", gap: "4px" }}>
                 <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800 }}>MSG</div>
-                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{"\uC694\uCCAD\uACFC \uC54C\uB9BC"}</div>
+                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{"요청과 알림"}</div>
               </div>
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <Link href="/messages" className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>{"\uCABD\uC9C0\uD568"}</Link>
+                <Link href="/messages" className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>{"쪽지함"}</Link>
                 <button type="button" onClick={() => setOpen(false)} style={{ width: "36px", height: "36px", borderRadius: "999px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>X</button>
               </div>
             </div>
@@ -468,10 +468,10 @@ export default function FloatingMessageHub() {
 
           <div style={{ display: "flex", gap: "8px", padding: "12px 18px", borderBottom: "1px solid #eef2f7", flexWrap: "wrap" }}>
             {[
-              { key: "receivedRequests", label: "\uBC1B\uC740 \uC694\uCCAD", count: receivedRequests.length },
-              { key: "sentRequests", label: "\uBCF4\uB0B8 \uC694\uCCAD", count: sentRequests.length },
-              { key: "receivedMessages", label: "\uBC1B\uC740 \uCABD\uC9C0", count: receivedMessages.length },
-              { key: "sentMessages", label: "\uBCF4\uB0B8 \uCABD\uC9C0", count: sentMessages.length },
+              { key: "receivedRequests", label: "받은 요청", count: receivedRequests.length },
+              { key: "sentRequests", label: "보낸 요청", count: sentRequests.length },
+              { key: "receivedMessages", label: "받은 쪽지", count: receivedMessages.length },
+              { key: "sentMessages", label: "보낸 쪽지", count: sentMessages.length },
             ].map((tab) => (
               <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key as TabKey)} style={{ padding: "10px 12px", borderRadius: "12px", border: activeTab === tab.key ? "1px solid #2563eb" : "1px solid #d1d5db", background: activeTab === tab.key ? "#dbeafe" : "#ffffff", color: activeTab === tab.key ? "#1d4ed8" : "#374151", fontWeight: 800, fontSize: "13px", boxShadow: activeTab === tab.key ? "0 10px 24px rgba(37, 99, 235, 0.12)" : "none", cursor: "pointer" }}>
                 {tab.label} ({tab.count})
@@ -480,20 +480,20 @@ export default function FloatingMessageHub() {
           </div>
 
           <div style={{ overflow: "auto", padding: "18px" }}>
-            {activeTab === "receivedRequests" ? renderRequestGroups(groupedReceivedRequests, "\uC544\uC9C1 \uBC1B\uC740 \uC694\uCCAD\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.", true) : null}
-            {activeTab === "sentRequests" ? renderRequestGroups(groupedSentRequests, "\uC544\uC9C1 \uBCF4\uB0B8 \uC694\uCCAD\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.", false) : null}
-            {activeTab === "receivedMessages" ? renderMessageList(receivedMessages, "\uC544\uC9C1 \uBC1B\uC740 \uCABD\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.", "received") : null}
-            {activeTab === "sentMessages" ? renderMessageList(sentMessages, "\uC544\uC9C1 \uBCF4\uB0B8 \uCABD\uC9C0\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.", "sent") : null}
+            {activeTab === "receivedRequests" ? renderRequestGroups(groupedReceivedRequests, "아직 받은 요청이 없습니다.", true) : null}
+            {activeTab === "sentRequests" ? renderRequestGroups(groupedSentRequests, "아직 보낸 요청이 없습니다.", false) : null}
+            {activeTab === "receivedMessages" ? renderMessageList(receivedMessages, "아직 받은 쪽지가 없습니다.", "received") : null}
+            {activeTab === "sentMessages" ? renderMessageList(sentMessages, "아직 보낸 쪽지가 없습니다.", "sent") : null}
           </div>
         </div>
       ) : null}
 
       {selectedRequest ? (
-        <Overlay ariaLabel="\uC694\uCCAD \uC0C1\uC138 \uB2EB\uAE30" onClose={() => setSelectedRequest(null)}>
+        <Overlay ariaLabel="요청 상세 닫기" onClose={() => setSelectedRequest(null)}>
           <div style={{ position: "fixed", right: "20px", bottom: "92px", width: "min(420px, calc(100vw - 24px))", borderRadius: "24px", background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)", zIndex: 72, padding: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
               <div>
-                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>{"\uC694\uCCAD \uC0C1\uC138"}</div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>{"요청 상세"}</div>
                 <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}</div>
               </div>
               <button type="button" onClick={() => setSelectedRequest(null)} style={{ width: "36px", height: "36px", borderRadius: "999px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>X</button>
@@ -506,33 +506,33 @@ export default function FloatingMessageHub() {
                 <>
                   <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
                     <div>
-                      {"\uC0C1\uD0DC"}
+                      {"상태"}
                       <span style={{ display: "inline-block", marginLeft: "8px", padding: "4px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
                     </div>
-                    <div>{selectedRequest.ownerView ? `\uC694\uCCAD\uC790 ${sanitizeNickname(selectedRequest.item.requesterName || selectedRequest.item.requesterId)}` : `\uD300 ${teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}`}</div>
-                    <div>{`\uC9C0\uC6D0 \uD3EC\uC9C0\uC158 ${roleText || "\uBBF8\uC785\uB825"}`}</div>
-                    <div>{`\uC0DD\uC131 \uC2DC\uAC01 ${formatDate(selectedRequest.item.createdAt)}`}</div>
-                    {selectedRequest.item.respondedAt ? <div>{`\uCC98\uB9AC \uC2DC\uAC01 ${formatDate(selectedRequest.item.respondedAt)}`}</div> : null}
+                    <div>{selectedRequest.ownerView ? `요청자 ${sanitizeNickname(selectedRequest.item.requesterName || selectedRequest.item.requesterId)}` : `팀 ${teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}`}</div>
+                    <div>{`지원 포지션 ${roleText || "미입력"}`}</div>
+                    <div>{`생성 시각 ${formatDate(selectedRequest.item.createdAt)}`}</div>
+                    {selectedRequest.item.respondedAt ? <div>{`처리 시각 ${formatDate(selectedRequest.item.respondedAt)}`}</div> : null}
                   </div>
 
                   {selectedRequest.item.message?.trim() ? (
                     <div style={{ marginBottom: "12px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>{"\uC9C0\uC6D0 \uBA54\uC2DC\uC9C0"}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>{"지원 메시지"}</div>
                       <div style={{ borderRadius: "16px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px", color: "#111827", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{selectedRequest.item.message}</div>
                     </div>
                   ) : null}
 
                   {selectedRequest.item.portfolioUrl?.trim() ? (
                     <div style={{ marginBottom: "16px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>{"\uD3EC\uD2B8\uD3F4\uB9AC\uC624 \uB610\uB294 GitHub"}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>{"포트폴리오 또는 GitHub"}</div>
                       <a href={selectedRequest.item.portfolioUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 800, wordBreak: "break-all" }}>{selectedRequest.item.portfolioUrl}</a>
                     </div>
                   ) : null}
 
                   {selectedRequest.ownerView && selectedRequest.item.status === "pending" ? (
                     <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest.item, "rejected")} style={{ padding: "10px 14px", borderRadius: "12px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>{"\uAC70\uC808"}</button>
-                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest.item, "accepted")} style={{ padding: "10px 14px", borderRadius: "12px", border: "none", background: "#2563eb", color: "#ffffff", fontWeight: 800, cursor: "pointer" }}>{"\uC218\uB77D"}</button>
+                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest.item, "rejected")} style={{ padding: "10px 14px", borderRadius: "12px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>{"거절"}</button>
+                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest.item, "accepted")} style={{ padding: "10px 14px", borderRadius: "12px", border: "none", background: "#2563eb", color: "#ffffff", fontWeight: 800, cursor: "pointer" }}>{"수락"}</button>
                     </div>
                   ) : null}
                 </>
@@ -543,21 +543,21 @@ export default function FloatingMessageHub() {
       ) : null}
 
       {selectedMessage ? (
-        <Overlay ariaLabel="\uCABD\uC9C0 \uC0C1\uC138 \uB2EB\uAE30" onClose={() => setSelectedMessage(null)}>
+        <Overlay ariaLabel="쪽지 상세 닫기" onClose={() => setSelectedMessage(null)}>
           <div style={{ position: "fixed", right: "20px", bottom: "92px", width: "min(420px, calc(100vw - 24px))", borderRadius: "24px", background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)", zIndex: 72, padding: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
               <div>
-                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>{"\uCABD\uC9C0 \uC0C1\uC138"}</div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>{"쪽지 상세"}</div>
                 <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{selectedMessage.title}</div>
               </div>
               <button type="button" onClick={() => setSelectedMessage(null)} style={{ width: "36px", height: "36px", borderRadius: "999px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>X</button>
             </div>
 
             <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
-              <div>{`\uD300 ${teamsByCode[selectedMessage.teamCode] || selectedMessage.teamCode}`}</div>
-              <div>{`\uBCF4\uB0B8 \uC0AC\uB78C ${sanitizeNickname(selectedMessage.senderNickname)}`}</div>
-              <div>{`\uBC1B\uB294 \uC0AC\uB78C ${sanitizeNickname(selectedMessage.receiverNickname)}`}</div>
-              <div>{`\uC0DD\uC131 \uC2DC\uAC01 ${formatDate(selectedMessage.createdAt)}`}</div>
+              <div>{`팀 ${teamsByCode[selectedMessage.teamCode] || selectedMessage.teamCode}`}</div>
+              <div>{`보낸 사람 ${sanitizeNickname(selectedMessage.senderNickname)}`}</div>
+              <div>{`받는 사람 ${sanitizeNickname(selectedMessage.receiverNickname)}`}</div>
+              <div>{`생성 시각 ${formatDate(selectedMessage.createdAt)}`}</div>
             </div>
 
             <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px", color: "#111827", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{selectedMessage.content}</div>
