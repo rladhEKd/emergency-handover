@@ -16,13 +16,13 @@ type Team = {
   teamCode: string;
   hackathonSlug: string;
   name: string;
-  isOpen: boolean;
-  memberCount: number;
-  lookingFor: string[];
+  isOpen?: boolean;
+  memberCount?: number;
+  lookingFor?: string[];
   intro: string;
-  contact: {
-    type: string;
-    url: string;
+  contact?: {
+    type?: string;
+    url?: string;
   };
   createdAt: string;
 };
@@ -95,7 +95,7 @@ export default function CampPage() {
 
   const [name, setName] = useState("");
   const [hackathonSlug, setHackathonSlug] = useState("");
-  const [memberCount, setMemberCount] = useState(1);
+  const [memberCount, setMemberCount] = useState("");
   const [lookingFor, setLookingFor] = useState("");
   const [intro, setIntro] = useState("");
   const [contactUrl, setContactUrl] = useState("");
@@ -125,7 +125,7 @@ export default function CampPage() {
     setEditingTeamCode("");
     setName("");
     setHackathonSlug("");
-    setMemberCount(1);
+    setMemberCount("");
     setLookingFor("");
     setIntro("");
     setContactUrl("");
@@ -207,12 +207,12 @@ export default function CampPage() {
     e.preventDefault();
 
     if (!currentUserId) {
-      alert("팀 모집글을 작성하거나 관리하려면 Login이 필요합니다.");
+      alert("\uD300 \uBAA8\uC9D1\uAE00\uC744 \uC791\uC131\uD558\uAC70\uB098 \uAD00\uB9AC\uD558\uB824\uBA74 Login\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
       return;
     }
 
-    if (!name.trim() || !intro.trim() || !lookingFor.trim()) {
-      alert("팀 이름, 소개, 모집 포지션을 입력해 주세요.");
+    if (!name.trim() || !intro.trim()) {
+      alert("\uD300 \uC774\uB984\uACFC \uC18C\uAC1C\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.");
       return;
     }
 
@@ -222,12 +222,14 @@ export default function CampPage() {
     }
 
     const nextTeamCode = editingTeamCode || makeTeamCode();
+    const trimmedMemberCount = memberCount.trim();
+
     const nextTeam: Team = {
       teamCode: nextTeamCode,
       hackathonSlug: hackathonSlug.trim(),
       name: name.trim(),
       isOpen,
-      memberCount: Number(memberCount),
+      memberCount: trimmedMemberCount ? Number(trimmedMemberCount) : undefined,
       lookingFor: lookingFor
         .split(",")
         .map((item) => item.trim())
@@ -278,11 +280,11 @@ export default function CampPage() {
     setEditingTeamCode(team.teamCode);
     setName(team.name);
     setHackathonSlug(team.hackathonSlug);
-    setMemberCount(team.memberCount);
-    setLookingFor(team.lookingFor.join(", "));
+    setMemberCount(typeof team.memberCount === "number" ? String(team.memberCount) : "");
+    setLookingFor((team.lookingFor ?? []).join(", "));
     setIntro(team.intro);
-    setContactUrl(team.contact.url);
-    setIsOpen(team.isOpen);
+    setContactUrl(team.contact?.url ?? "");
+    setIsOpen(team.isOpen ?? true);
   }
 
   function handleToggleTeamOpen(teamCode: string, nextOpen: boolean) {
@@ -471,12 +473,12 @@ export default function CampPage() {
           <form onSubmit={handleCreateTeam}>
             <div className="toolbar">
               <div className="field">
-                <label htmlFor="camp-name">팀 이름</label>
+                <label htmlFor="camp-name">{"\uD300\uBA85 *"}</label>
                 <input id="camp-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="vibe-builders" disabled={!currentUserId} />
               </div>
 
               <div className="field">
-                <label htmlFor="camp-hackathon">해커톤</label>
+                <label htmlFor="camp-hackathon">{"\uC5F0\uACB0 \uD574\uCEE4\uD1A4 (\uC120\uD0DD)"}</label>
                 <select id="camp-hackathon" className="select" value={hackathonSlug} onChange={(e) => setHackathonSlug(e.target.value)} disabled={!currentUserId}>
                   <option value="">연결 안 함</option>
                   <option value="aimers-8-model-lite">Aimers 8</option>
@@ -486,12 +488,12 @@ export default function CampPage() {
               </div>
 
               <div className="field">
-                <label htmlFor="camp-member-count">팀 인원</label>
-                <input id="camp-member-count" className="input" type="number" min={1} max={10} value={memberCount} onChange={(e) => setMemberCount(Number(e.target.value))} disabled={!currentUserId} />
+                <label htmlFor="camp-member-count">{"\uD300\uC6D0 \uC218 (\uC120\uD0DD)"}</label>
+                <input id="camp-member-count" className="input" type="number" min={1} max={10} value={memberCount} onChange={(e) => setMemberCount(e.target.value)} disabled={!currentUserId} />
               </div>
 
               <div className="field">
-                <label htmlFor="camp-open-state">모집 상태</label>
+                <label htmlFor="camp-open-state">{"\uBAA8\uC9D1 \uC0C1\uD0DC (\uC120\uD0DD)"}</label>
                 <select id="camp-open-state" className="select" value={isOpen ? "open" : "closed"} onChange={(e) => setIsOpen(e.target.value === "open")} disabled={!currentUserId}>
                   <option value="open">모집중</option>
                   <option value="closed">모집 마감</option>
@@ -501,13 +503,13 @@ export default function CampPage() {
 
             <div className="stack-md" style={{ marginTop: "16px" }}>
               <div className="field">
-                <label htmlFor="camp-looking-for">모집 포지션</label>
+                <label htmlFor="camp-looking-for">{"\uBAA8\uC9D1 \uD3EC\uC9C0\uC158 (\uC120\uD0DD)"}</label>
                 <input id="camp-looking-for" className="input" value={lookingFor} onChange={(e) => setLookingFor(e.target.value)} placeholder="Frontend, Designer" disabled={!currentUserId} />
-                <div className="field-help">여러 역할은 쉼표로 구분해 주세요.</div>
+                <div className="field-help">{"\uC785\uB825\uD558\uC9C0 \uC54A\uC544\uB3C4 \uC800\uC7A5\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."}</div>
               </div>
 
               <div className="field">
-                <label htmlFor="camp-intro">팀 소개</label>
+                <label htmlFor="camp-intro">{"\uC18C\uAC1C *"}</label>
                 <textarea id="camp-intro" className="textarea" value={intro} onChange={(e) => setIntro(e.target.value)} placeholder="팀 소개와 모집 내용을 입력해 주세요" rows={4} disabled={!currentUserId} />
               </div>
 
@@ -566,7 +568,7 @@ export default function CampPage() {
                         </div>
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", color: "#64748b", fontSize: "12px" }}>
                           <span>{team.hackathonSlug ? getHackathonTitle(team.hackathonSlug) : "연결된 해커톤 없음"}</span>
-                          <span>인원 {team.memberCount}명</span>
+                          {typeof team.memberCount === "number" && team.memberCount > 0 ? <span>{"\uC778\uC6D0 "}{team.memberCount}{"\uBA85"}</span> : null}
                         </div>
                       </div>
 
@@ -577,15 +579,13 @@ export default function CampPage() {
 
                     <div style={{ display: "grid", gap: "10px" }}>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                        {team.lookingFor.length > 0 ? (
-                          team.lookingFor.map((role) => (
-                            <span key={role} className="tag-chip">
-                              {role}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="muted" style={{ fontSize: "13px" }}>모집 포지션 없음</span>
-                        )}
+                        {(team.lookingFor ?? []).length > 0
+                          ? (team.lookingFor ?? []).map((role) => (
+                              <span key={role} className="tag-chip">
+                                {role}
+                              </span>
+                            ))
+                          : null}
                       </div>
 
                       <p style={{ margin: 0, color: "#374151", fontSize: "14px", lineHeight: 1.65 }}>{team.intro}</p>
@@ -593,11 +593,11 @@ export default function CampPage() {
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
                         <div style={{ display: "grid", gap: "6px" }}>
                           <div className="muted" style={{ fontSize: "12px" }}>등록일 {formatDate(team.createdAt)}</div>
-                          {team.contact.url ? (
+                          {team.contact?.url ? (
                             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                               <span className="muted" style={{ fontSize: "12px" }}>팀장이 공개한 연락 링크입니다.</span>
                               <a
-                                href={team.contact.url}
+                                href={team.contact?.url}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="btn btn-secondary"
