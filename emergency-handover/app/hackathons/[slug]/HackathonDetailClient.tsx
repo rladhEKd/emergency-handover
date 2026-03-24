@@ -588,7 +588,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           </div>
           <div className="hero-actions" style={{ marginTop: "4px" }}>
             <button type="button" className="btn btn-secondary" onClick={() => setActiveTab("submit")}>
-              Submit 보기
+              제출 보기
             </button>
             <button type="button" className="btn btn-secondary" onClick={() => setActiveTab("teams")}>
               팀 보기
@@ -607,40 +607,60 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
           <TabButton active={activeTab === "schedule"} onClick={() => setActiveTab("schedule")}>일정</TabButton>
           <TabButton active={activeTab === "prize"} onClick={() => setActiveTab("prize")}>상금</TabButton>
           <TabButton active={activeTab === "teams"} onClick={() => setActiveTab("teams")}>팀</TabButton>
-          <TabButton active={activeTab === "submit"} onClick={() => setActiveTab("submit")}>Submit</TabButton>
+          <TabButton active={activeTab === "submit"} onClick={() => setActiveTab("submit")}>제출</TabButton>
           <TabButton active={activeTab === "leaderboard"} onClick={() => setActiveTab("leaderboard")}>리더보드</TabButton>
         </div>
       </section>
       {activeTab === "overview" && (
         <SectionCard title="개요">
-          <p style={{ margin: "0 0 14px", lineHeight: 1.8, color: "#374151" }}>
+          <p style={{ margin: "0 0 14px", maxWidth: "760px", lineHeight: 1.72, color: "#374151", fontSize: "14px" }}>
             {details?.sections.overview?.summary ?? "상세 안내가 아직 준비되지 않았습니다."}
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px", marginBottom: notices.length > 0 || quickLinks ? "18px" : 0 }}>
-            <StatCard label="Solo participation" value={allowSolo ? "Allowed" : "Team only"} />
-            <StatCard label="Max team size" value={maxTeamSize} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px", marginBottom: notices.length > 0 || quickLinks ? "14px" : 0 }}>
+            <div style={{ borderRadius: "14px", border: "1px solid #e5e7eb", background: "#fbfcfe", padding: "12px 14px" }}>
+              <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 700, marginBottom: "4px" }}>개인 참가</div>
+              <div style={{ fontSize: "15px", color: "#111827", fontWeight: 800 }}>{allowSolo ? "가능" : "팀만 가능"}</div>
+            </div>
+            <div style={{ borderRadius: "14px", border: "1px solid #e5e7eb", background: "#fbfcfe", padding: "12px 14px" }}>
+              <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 700, marginBottom: "4px" }}>최대 팀원 수</div>
+              <div style={{ fontSize: "15px", color: "#111827", fontWeight: 800 }}>{maxTeamSize}</div>
+            </div>
           </div>
 
           {notices.length > 0 && (
-            <div style={{ display: "grid", gap: "12px", marginBottom: quickLinks ? "18px" : 0 }}>
+            <div style={{ display: "grid", gap: "8px", marginBottom: quickLinks ? "14px" : 0 }}>
               {notices.map((notice) => (
-                <div key={notice} style={{ borderRadius: "18px", padding: "16px 18px", background: "#fffaf0", border: "1px solid #fde68a", color: "#92400e", lineHeight: 1.7, fontWeight: 600 }}>
-                  {notice}
+                <div
+                  key={notice}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "auto minmax(0, 1fr)",
+                    gap: "10px",
+                    alignItems: "start",
+                    borderRadius: "12px",
+                    border: "1px solid #f3e2a7",
+                    background: "#fffaf0",
+                    padding: "11px 12px",
+                    color: "#92400e",
+                  }}
+                >
+                  <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#d97706", marginTop: "8px" }} />
+                  <span style={{ fontSize: "13px", lineHeight: 1.65, fontWeight: 600 }}>{notice}</span>
                 </div>
               ))}
             </div>
           )}
 
           {quickLinks && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
               {quickLinks.rules && (
-                <a href={quickLinks.rules} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px 18px", fontWeight: 800, color: "#2563eb" }}>
+                <a href={quickLinks.rules} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: "38px", padding: "0 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e5e7eb", fontWeight: 800, color: "#2563eb" }}>
                   안내 보기
                 </a>
               )}
               {quickLinks.faq && (
-                <a href={quickLinks.faq} target="_blank" rel="noreferrer" style={{ display: "block", borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px 18px", fontWeight: 800, color: "#2563eb" }}>
+                <a href={quickLinks.faq} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: "38px", padding: "0 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e5e7eb", fontWeight: 800, color: "#2563eb" }}>
                   FAQ 보기
                 </a>
               )}
@@ -1092,14 +1112,31 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       )}
 
       {activeTab === "submit" && (
-        <SectionCard title="Submit">
+        <SectionCard title="제출">
           {details?.sections.submit?.guide && details.sections.submit.guide.length > 0 ? (
-            <div style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
-              {details.sections.submit.guide.map((guide) => (
-                <div key={guide} style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px 18px", color: "#374151", lineHeight: 1.7 }}>
-                  {guide}
-                </div>
-              ))}
+            <div style={{ marginBottom: "16px" }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: "16px", fontWeight: 800, color: "#111827" }}>제출 안내</h3>
+              <div style={{ display: "grid", gap: "8px" }}>
+                {details.sections.submit.guide.map((guide) => (
+                  <div
+                    key={guide}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "auto minmax(0, 1fr)",
+                      gap: "10px",
+                      alignItems: "start",
+                      borderRadius: "12px",
+                      border: "1px solid #e5e7eb",
+                      background: "#fbfcfe",
+                      padding: "10px 12px",
+                      color: "#374151",
+                    }}
+                  >
+                    <span style={{ width: "6px", height: "6px", borderRadius: "999px", background: "#2563eb", marginTop: "8px" }} />
+                    <span style={{ fontSize: "13px", lineHeight: 1.65 }}>{guide}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <StatePanel
@@ -1112,23 +1149,41 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
           {details?.sections.submit?.allowedArtifactTypes && details.sections.submit.allowedArtifactTypes.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
-            <h3 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>허용 산출물</h3>
+            <h3 style={{ margin: "0 0 10px", fontSize: "16px", fontWeight: 800, color: "#111827" }}>허용 형식</h3>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {details.sections.submit.allowedArtifactTypes.map((type) => (
-                  <span key={type} style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontSize: "13px", fontWeight: 700 }}>{type}</span>
+                  <span key={type} style={{ display: "inline-flex", alignItems: "center", minHeight: "30px", padding: "0 10px", borderRadius: "999px", background: "#f3f4f6", border: "1px solid #e5e7eb", color: "#374151", fontSize: "12px", fontWeight: 700 }}>{type}</span>
                 ))}
               </div>
             </div>
           )}
 
           {details?.sections.submit?.submissionItems && details.sections.submit.submissionItems.length > 0 && (
-            <div>
-              <h3 style={{ margin: "0 0 10px", fontSize: "20px", fontWeight: 900 }}>Submit 항목</h3>
-              <div style={{ display: "grid", gap: "12px" }}>
-                {details.sections.submit.submissionItems.map((item) => (
-                  <div key={item.key} style={{ borderRadius: "18px", background: "#ffffff", border: "1px solid #e5e7eb", padding: "16px 18px" }}>
-                    <div style={{ fontWeight: 800, marginBottom: "6px" }}>{item.title}</div>
-                    <div style={{ color: "#6b7280", fontSize: "14px" }}>{item.format}</div>
+            <div style={{ marginBottom: "16px" }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: "16px", fontWeight: 800, color: "#111827" }}>제출 단계</h3>
+              <div style={{ display: "grid", gap: "10px" }}>
+                {details.sections.submit.submissionItems.map((item, index) => (
+                  <div
+                    key={item.key}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "auto minmax(0, 1fr) auto",
+                      gap: "12px",
+                      alignItems: "start",
+                      borderRadius: "12px",
+                      background: "#ffffff",
+                      border: "1px solid #e5e7eb",
+                      padding: "12px 14px",
+                    }}
+                  >
+                    <div style={{ width: "24px", height: "24px", borderRadius: "999px", background: "#f3f4f6", color: "#111827", fontSize: "12px", fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      {index + 1}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: "14px", fontWeight: 800, color: "#111827", marginBottom: "4px" }}>{item.title}</div>
+                      <div style={{ color: "#6b7280", fontSize: "12px" }}>형식 {item.format}</div>
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#9ca3af", fontWeight: 700, whiteSpace: "nowrap" }}>필수</div>
                   </div>
                 ))}
               </div>
@@ -1148,14 +1203,15 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                 <div
                   style={{
                     marginTop: "18px",
-                    borderRadius: "18px",
+                    borderRadius: "12px",
                     background: "#f8fafc",
                     border: "1px solid #e5e7eb",
-                    padding: "18px",
+                    padding: "14px 16px",
                     color: "#4b5563",
+                    fontSize: "14px",
                   }}
                 >
-                  Submit을 저장하려면 Login이 필요합니다. {" "}
+                  제출을 저장하려면 Login이 필요합니다. {" "}
                   <Link href={authRedirectUrl} style={{ color: "#2563eb", fontWeight: 800 }}>
                     Login 하러 가기
                   </Link>
@@ -1164,11 +1220,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                 <div
                   style={{
                     marginTop: "18px",
-                    borderRadius: "18px",
+                    borderRadius: "12px",
                     background: "#f8fafc",
                     border: "1px solid #e5e7eb",
-                    padding: "18px",
+                    padding: "14px 16px",
                     color: "#374151",
+                    fontSize: "14px",
                   }}
                 >
                   현재 사용자로 저장됩니다: {currentNickname || "member"}
@@ -1178,12 +1235,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               <form onSubmit={handleSubmit} style={{ marginTop: "18px" }}>
                 <div style={{ display: "grid", gap: "14px" }}>
                   {submissionItems.map((item) => (
-                    <div key={item.key}>
+                    <div key={item.key} style={{ paddingBottom: "14px", borderBottom: "1px solid #f3f4f6" }}>
                       <label
                         htmlFor={`submission-${item.key}`}
                         style={{
                           display: "block",
-                          marginBottom: "8px",
+                          marginBottom: "6px",
                           fontSize: "14px",
                           fontWeight: 800,
                           color: "#111827",
@@ -1191,6 +1248,8 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                       >
                         {item.title}
                       </label>
+
+                      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "10px" }}>형식 {item.format}</div>
 
                       {isUrlFormat(item.format) ? (
                         <input
@@ -1201,13 +1260,13 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                           placeholder={getInputPlaceholder(item.format)}
                           style={{
                             width: "100%",
-                            height: "48px",
+                            height: "44px",
                             padding: "0 14px",
-                            borderRadius: "14px",
+                            borderRadius: "12px",
                             border: "1px solid #d1d5db",
                             outline: "none",
-                            fontSize: "15px",
-                            background: "#fbfcfe",
+                            fontSize: "14px",
+                            background: "#ffffff",
                           }}
                         />
                       ) : (
@@ -1219,12 +1278,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                           rows={item.format === "text_or_url" ? 3 : 4}
                           style={{
                             width: "100%",
-                            padding: "12px 14px",
-                            borderRadius: "14px",
+                            padding: "10px 14px",
+                            borderRadius: "12px",
                             border: "1px solid #d1d5db",
                             outline: "none",
-                            fontSize: "15px",
-                            background: "#fbfcfe",
+                            fontSize: "14px",
+                            background: "#ffffff",
                             resize: "vertical",
                           }}
                         />
@@ -1237,7 +1296,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                       htmlFor="submission-notes"
                       style={{
                         display: "block",
-                        marginBottom: "8px",
+                        marginBottom: "6px",
                         fontSize: "14px",
                         fontWeight: 800,
                         color: "#111827",
@@ -1245,6 +1304,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     >
                       메모
                     </label>
+                    <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "10px" }}>선택 사항</div>
                     <textarea
                       id="submission-notes"
                       value={submissionNotes}
@@ -1253,12 +1313,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                       rows={3}
                       style={{
                         width: "100%",
-                        padding: "12px 14px",
-                        borderRadius: "14px",
+                        padding: "10px 14px",
+                        borderRadius: "12px",
                         border: "1px solid #d1d5db",
                         outline: "none",
-                        fontSize: "15px",
-                        background: "#fbfcfe",
+                        fontSize: "14px",
+                        background: "#ffffff",
                         resize: "vertical",
                       }}
                     />
@@ -1314,26 +1374,27 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     cursor: currentUserId ? "pointer" : "not-allowed",
                   }}
                 >
-                  저장하기
+                  제출 저장
                 </button>
               </form>
 
               <div style={{ marginTop: "22px" }}>
-                <h3 style={{ margin: "0 0 12px", fontSize: "20px", fontWeight: 900 }}>
+                <h3 style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 800, color: "#111827" }}>
                   저장 이력
                 </h3>
 
                 {!currentUserId ? (
                   <div
                     style={{
-                      borderRadius: "18px",
+                      borderRadius: "12px",
                       background: "#f8fafc",
                       border: "1px solid #e5e7eb",
-                      padding: "18px",
+                      padding: "14px 16px",
                       color: "#6b7280",
+                      fontSize: "14px",
                     }}
                   >
-                    저장한 Submit을 보려면 Login이 필요합니다.
+                    저장한 제출을 보려면 Login이 필요합니다.
                   </div>
                 ) : submissionLoadError ? (
                   <StatePanel
@@ -1343,15 +1404,15 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     description="다시 시도해 주세요."
                   />
                 ) : submissionHistory.length > 0 ? (
-                  <div style={{ display: "grid", gap: "12px" }}>
+                  <div style={{ display: "grid", gap: "10px" }}>
                     {submissionHistory.map((record) => (
                       <div
                         key={record.id}
                         style={{
-                          borderRadius: "18px",
+                          borderRadius: "12px",
                           background: "#ffffff",
                           border: "1px solid #e5e7eb",
-                          padding: "16px 18px",
+                          padding: "14px 16px",
                         }}
                       >
                         <div
@@ -1363,8 +1424,8 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                             marginBottom: "10px",
                           }}
                         >
-                          <div style={{ fontWeight: 800, color: "#111827" }}>저장된 Submit</div>
-                          <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                          <div style={{ fontWeight: 800, color: "#111827" }}>저장된 제출</div>
+                          <div style={{ color: "#6b7280", fontSize: "13px" }}>
                             {formatDate(record.submittedAt)}
                           </div>
                         </div>
@@ -1378,9 +1439,10 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                               <div key={`${record.id}-${item.key}`}>
                                 <div
                                   style={{
-                                    fontSize: "13px",
+                                    fontSize: "12px",
                                     color: "#6b7280",
                                     marginBottom: "4px",
+                                    fontWeight: 700,
                                   }}
                                 >
                                   {item.title}
@@ -1391,12 +1453,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                                     href={value}
                                     target="_blank"
                                     rel="noreferrer"
-                                    style={{ color: "#2563eb", fontWeight: 700 }}
+                                    style={{ color: "#2563eb", fontWeight: 700, fontSize: "14px" }}
                                   >
                                     {value}
                                   </a>
                                 ) : (
-                                  <div style={{ color: "#111827", lineHeight: 1.7 }}>{value}</div>
+                                  <div style={{ color: "#111827", lineHeight: 1.7, fontSize: "14px" }}>{value}</div>
                                 )}
                               </div>
                             );
@@ -1406,14 +1468,15 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                             <div>
                               <div
                                 style={{
-                                  fontSize: "13px",
+                                  fontSize: "12px",
                                   color: "#6b7280",
                                   marginBottom: "4px",
+                                  fontWeight: 700,
                                 }}
                               >
                                 메모
                               </div>
-                              <div style={{ color: "#111827", lineHeight: 1.7 }}>
+                              <div style={{ color: "#111827", lineHeight: 1.7, fontSize: "14px" }}>
                                 {record.notes}
                               </div>
                             </div>
@@ -1423,7 +1486,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                     ))}
                   </div>
                 ) : (
-                  <StatePanel kind="empty" compact title="아직 저장한 Submit이 없습니다" />
+                  <StatePanel kind="empty" compact title="아직 저장한 제출이 없습니다" />
                 )}
               </div>
             </>
@@ -1432,7 +1495,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               kind="empty"
               compact
               title="제출 항목이 없습니다"
-              description="이 해커톤의 Submit 설정이 아직 준비되지 않았습니다."
+              description="이 해커톤의 제출 설정이 아직 준비되지 않았습니다."
             />
           )}
         </SectionCard>
@@ -1548,8 +1611,8 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                   type="button"
                   onClick={handleRequestModalClose}
                   style={{
-                    padding: "12px 16px",
-                    borderRadius: "14px",
+                    padding: "11px 15px",
+                    borderRadius: "12px",
                     border: "1px solid #d1d5db",
                     background: "#ffffff",
                     color: "#374151",
