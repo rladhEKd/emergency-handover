@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -96,7 +96,7 @@ export default function MessageThreadPage() {
   }, [messages.length]);
 
   const otherUserId = useMemo(() => (thread && userId ? getDirectMessageOtherParticipant(thread, userId) : null), [thread, userId]);
-  const otherNickname = otherUserId && thread ? thread.participantNicknames[otherUserId] || "Member" : "";
+  const otherNickname = otherUserId && thread ? thread.participantNicknames[otherUserId] || "멤버" : "";
 
   function handleSendMessage(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -108,9 +108,9 @@ export default function MessageThreadPage() {
     const sent = sendDirectMessage({
       threadId: thread.id,
       currentUserId: userId,
-      currentUserNickname: nickname || "Member",
+      currentUserNickname: nickname || "멤버",
       otherUserId,
-      otherUserNickname: otherNickname || "Member",
+      otherUserNickname: otherNickname || "멤버",
       body: trimmed,
       teamCode: thread.teamCode,
       teamName: thread.teamName,
@@ -130,15 +130,15 @@ export default function MessageThreadPage() {
     <main className="page-shell">
       <div className="page-stack">
         <div>
-          <Link href="/messages" className="subtle-link">{"쪽지함으로 돌아가기"}</Link>
+          <Link href="/messages" className="subtle-link">쪽지함으로 돌아가기</Link>
         </div>
 
         {!ready ? (
           <StatePanel kind="loading" title="대화 내용을 불러오는 중입니다" description="잠시만 기다려 주세요." />
         ) : !userId ? (
           <section className="section-card" style={{ display: "grid", gap: "12px" }}>
-            <h2 className="section-title">Login이 필요합니다</h2>
-            <p className="muted" style={{ margin: 0 }}>{"대화는 Login 후 확인할 수 있습니다."}</p>
+            <h2 className="section-title">Login이 필요합니다.</h2>
+            <p className="muted" style={{ margin: 0 }}>대화는 Login 후 확인할 수 있습니다.</p>
             <div>
               <Link href={`/auth?mode=login&redirect=/messages/${threadId}`} className="btn btn-secondary">Login</Link>
             </div>
@@ -149,15 +149,14 @@ export default function MessageThreadPage() {
           <StatePanel kind="empty" title="대화를 찾을 수 없습니다" description="쪽지함에서 다시 확인해 주세요." />
         ) : (
           <>
-            <section className="section-card" style={{ display: "grid", gap: "8px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "end", flexWrap: "wrap" }}>
-                <div style={{ display: "grid", gap: "4px" }}>
-                  <h1 className="section-title" style={{ margin: 0 }}>{otherNickname}</h1>
-                  {thread.teamName ? <p className="muted" style={{ margin: 0 }}>{thread.teamName}</p> : null}
-                </div>
-                <div className="hero-meta" style={{ marginTop: 0 }}>
-                  <span>{`메시지 ${messages.length}개`}</span>
-                </div>
+            <section className="page-hero page-hero--dark" style={{ display: "grid", gap: "8px" }}>
+              <div style={{ display: "grid", gap: "6px" }}>
+                <div className="eyebrow">대화 상대</div>
+                <h1 className="hero-title" style={{ margin: 0 }}>{otherNickname}</h1>
+                {thread.teamName ? <p className="hero-description" style={{ margin: 0 }}>{thread.teamName}</p> : null}
+              </div>
+              <div className="hero-meta" style={{ marginTop: 0 }}>
+                <span>{`메시지 ${messages.length}건`}</span>
               </div>
             </section>
 
@@ -183,9 +182,9 @@ export default function MessageThreadPage() {
               )}
 
               <form onSubmit={handleSendMessage} style={{ display: "grid", gap: "10px" }}>
-                <textarea className="textarea" rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder={"메시지를 입력하세요"} />
+                <textarea className="textarea" rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder="메시지를 입력하세요" />
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <button type="submit" className="btn btn-primary" disabled={!body.trim()}>{"전송"}</button>
+                  <button type="submit" className="btn btn-primary" disabled={!body.trim()}>전송</button>
                 </div>
               </form>
             </section>

@@ -55,13 +55,19 @@ function normalizeUserId(value: string) {
   return value.trim();
 }
 
+function decodeEscapedUnicode(value: string | null | undefined) {
+  if (!value) return "";
+  return String(value).replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 function isBrokenPlaceholder(value: string | null | undefined) {
   const normalized = (value ?? "").trim();
   return normalized === "?" || normalized === "??" || normalized === "???" || normalized.includes("?");
 }
 
 function sanitizeNickname(value: string | null | undefined, fallback = "Member") {
-  const normalized = (value ?? "").trim();
+  const decoded = decodeEscapedUnicode(value);
+  const normalized = decoded.trim();
   if (!normalized || isBrokenPlaceholder(normalized)) {
     return fallback;
   }
@@ -87,9 +93,9 @@ export function readDirectMessageThreads() {
   const normalizedThreads = threads.map((thread) => {
     const participantNicknames = Object.fromEntries(
       Object.entries(thread.participantNicknames ?? {}).map(([id, nickname]) => {
-        const nextNickname = sanitizeNickname(nickname);
-        if (nextNickname !== nickname) changed = true;
-        return [id, nextNickname];
+        const sanitizedNickname = sanitizeNickname(nickname);
+        if (sanitizedNickname !== nickname) changed = true;
+        return [id, sanitizedNickname];
       })
     );
 
@@ -115,8 +121,15 @@ export function readDirectMessages() {
   const normalizedMessages = messages.map((message) => {
     const senderNickname = sanitizeNickname(message.senderNickname);
     const receiverNickname = sanitizeNickname(message.receiverNickname);
+    const title = message.title ? decodeEscapedUnicode(message.title) : "";
+    const body = decodeEscapedUnicode(message.body);
 
-    if (senderNickname !== message.senderNickname || receiverNickname !== message.receiverNickname) {
+    if (
+      senderNickname !== message.senderNickname ||
+      receiverNickname !== message.receiverNickname ||
+      title !== (message.title ?? "") ||
+      body !== message.body
+    ) {
       changed = true;
     }
 
@@ -124,6 +137,8 @@ export function readDirectMessages() {
       ...message,
       senderNickname,
       receiverNickname,
+      title: title || undefined,
+      body,
     };
   });
 

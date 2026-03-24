@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StatePanel from "../../components/ui/StatePanel";
 import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../../lib/local-auth";
 
@@ -53,7 +53,6 @@ type Summary = {
   myTeams: number;
   sentRequests: number;
   receivedRequests: number;
-  sentMessages: number;
   savedSubmissions: number;
 };
 
@@ -61,9 +60,10 @@ type DashboardLists = {
   myTeams: Team[];
   sentRequests: TeamJoinRequest[];
   receivedRequests: TeamJoinRequest[];
-  sentMessages: TeamMessage[];
   savedSubmissions: SubmissionListItem[];
 };
+
+type PanelKey = "myTeams" | "receivedRequests" | "sentRequests" | "savedSubmissions";
 
 const TEAM_JOIN_REQUESTS_PREFIX = "team-join-requests-v1:";
 const TEAM_MESSAGES_STORAGE_KEY = "team-messages-v1";
@@ -84,12 +84,19 @@ function isBrokenSystemText(value: string | null | undefined) {
   return !normalized || normalized === "?" || normalized === "??" || normalized === "???" || normalized.includes("?");
 }
 
+function decodeEscapedUnicode(value: string | null | undefined) {
+  if (typeof value !== "string") return "";
+  return value.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16))).trim();
+}
+
 function sanitizeNickname(value: string | null | undefined) {
-  return isBrokenSystemText(value) ? "멤버" : String(value).trim();
+  const decoded = decodeEscapedUnicode(value);
+  return isBrokenSystemText(decoded) ? "멤버" : decoded;
 }
 
 function sanitizeRole(value: string | null | undefined) {
-  return isBrokenSystemText(value) ? "" : String(value).trim();
+  const decoded = decodeEscapedUnicode(value);
+  return isBrokenSystemText(decoded) ? "" : decoded;
 }
 
 function getStatusBadge(status: "pending" | "accepted" | "rejected") {
@@ -226,13 +233,38 @@ function readSavedSubmissionsForUser(userId: string) {
   return collected.sort((a, b) => new Date(b.record.submittedAt).getTime() - new Date(a.record.submittedAt).getTime());
 }
 
-function SummaryCard({ label, value, hint }: { label: string; value: number; hint: string }) {
+function SummaryCard({
+  label,
+  value,
+  hint,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <section className="section-card" style={{ padding: "16px", display: "grid", gap: "6px" }}>
-      <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800 }}>{label}</div>
-      <div style={{ fontSize: "28px", lineHeight: 1, fontWeight: 800, color: "#111827" }}>{value}</div>
-      <div className="muted" style={{ margin: 0 }}>{hint}</div>
-    </section>
+    <button
+      type="button"
+      className="interactive-card"
+      onClick={onClick}
+      style={{
+        textAlign: "left",
+        cursor: "pointer",
+        padding: 0,
+        borderColor: active ? "#bfd3ff" : undefined,
+        boxShadow: active ? "0 12px 26px rgba(15, 23, 42, 0.08)" : undefined,
+      }}
+    >
+      <div style={{ padding: "16px", display: "grid", gap: "6px" }}>
+        <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800 }}>{label}</div>
+        <div style={{ fontSize: "28px", lineHeight: 1, fontWeight: 800, color: "#111827" }}>{value}</div>
+        <div className="muted" style={{ margin: 0 }}>{hint}</div>
+      </div>
+    </button>
   );
 }
 
@@ -250,18 +282,17 @@ export default function DashboardPage() {
   const [userId, setUserId] = useState("");
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const [activePanel, setActivePanel] = useState<PanelKey>("myTeams");
   const [summary, setSummary] = useState<Summary>({
     myTeams: 0,
     sentRequests: 0,
     receivedRequests: 0,
-    sentMessages: 0,
     savedSubmissions: 0,
   });
   const [lists, setLists] = useState<DashboardLists>({
     myTeams: [],
     sentRequests: [],
     receivedRequests: [],
-    sentMessages: [],
     savedSubmissions: [],
   });
   const [teamsByCode, setTeamsByCode] = useState<Record<string, string>>({});
@@ -276,8 +307,8 @@ export default function DashboardPage() {
         setUserId(nextUserId);
 
         if (!nextUserId) {
-          setSummary({ myTeams: 0, sentRequests: 0, receivedRequests: 0, sentMessages: 0, savedSubmissions: 0 });
-          setLists({ myTeams: [], sentRequests: [], receivedRequests: [], sentMessages: [], savedSubmissions: [] });
+          setSummary({ myTeams: 0, sentRequests: 0, receivedRequests: 0, savedSubmissions: 0 });
+          setLists({ myTeams: [], sentRequests: [], receivedRequests: [], savedSubmissions: [] });
           setTeamsByCode({});
           setReady(true);
           return;
@@ -292,10 +323,9 @@ export default function DashboardPage() {
         const myTeams = teams.filter((team) => teamOwners[team.teamCode] === nextUserId);
         const myTeamCodes = myTeams.map((team) => team.teamCode);
         const joinRequests = readAllJoinRequests();
-        const messages = readStoredMessages();
+        readStoredMessages();
         const sentRequests = joinRequests.filter((request) => request.requesterId === nextUserId).sort(compareRequests);
         const receivedRequests = joinRequests.filter((request) => myTeamCodes.includes(request.teamCode)).sort(compareRequests);
-        const sentMessages = messages.filter((message) => message.senderUserId === nextUserId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         const savedSubmissions = readSavedSubmissionsForUser(nextUserId);
 
         setTeamsByCode(nextTeamsByCode);
@@ -303,10 +333,9 @@ export default function DashboardPage() {
           myTeams: myTeams.length,
           sentRequests: sentRequests.length,
           receivedRequests: receivedRequests.length,
-          sentMessages: sentMessages.length,
           savedSubmissions: savedSubmissions.length,
         });
-        setLists({ myTeams, sentRequests, receivedRequests, sentMessages, savedSubmissions });
+        setLists({ myTeams, sentRequests, receivedRequests, savedSubmissions });
         setReady(true);
       } catch {
         setError("대시보드를 불러오는 중 문제가 발생했습니다.");
@@ -333,7 +362,7 @@ export default function DashboardPage() {
     return (
       <main className="page-shell">
         <section className="section-card" style={{ display: "grid", gap: "14px" }}>
-          <h1 className="section-title" style={{ margin: 0 }}>{"Dashboard를 보려면 Login이 필요합니다"}</h1>
+          <h1 className="section-title" style={{ margin: 0 }}>Dashboard를 보려면 Login이 필요합니다.</h1>
           <div>
             <Link href="/auth?mode=login&redirect=/dashboard" className="btn btn-secondary">
               Login 하러 가기
@@ -344,13 +373,107 @@ export default function DashboardPage() {
     );
   }
 
+  let detailTitle = "내 팀";
+  let detailContent: React.ReactNode = null;
+
+  if (activePanel === "myTeams") {
+    detailTitle = "내 팀";
+    detailContent = lists.myTeams.length === 0 ? (
+      <StatePanel kind="empty" compact title="아직 만든 팀이 없습니다." />
+    ) : (
+      <div style={{ display: "grid", gap: "10px" }}>
+        {lists.myTeams.map((team) => (
+          <div key={team.teamCode} className="interactive-card">
+            <article style={{ padding: "14px", display: "grid", gap: "6px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+                <div style={{ fontWeight: 800, color: "#111827" }}>{team.name}</div>
+                {team.isOpen === undefined ? null : (
+                  <span className={team.isOpen ? "status-chip status-chip--open" : "status-chip status-chip--closed"}>
+                    {team.isOpen ? "모집중" : "모집 마감"}
+                  </span>
+                )}
+              </div>
+              {team.hackathonSlug ? <div className="muted">{getHackathonTitle(team.hackathonSlug)}</div> : null}
+            </article>
+          </div>
+        ))}
+      </div>
+    );
+  } else if (activePanel === "receivedRequests") {
+    detailTitle = "받은 요청";
+    detailContent = lists.receivedRequests.length === 0 ? (
+      <StatePanel kind="empty" compact title="아직 받은 요청이 없습니다." />
+    ) : (
+      <div style={{ display: "grid", gap: "10px" }}>
+        {lists.receivedRequests.map((request) => {
+          const badge = getStatusBadge(request.status);
+          const roleText = sanitizeRole(request.role);
+          return (
+            <div key={`${request.teamCode}-${request.requesterId}-${request.createdAt}`} className="interactive-card">
+              <article style={{ padding: "14px", display: "grid", gap: "6px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+                  <div style={{ fontWeight: 800, color: "#111827" }}>{teamsByCode[request.teamCode] || request.teamCode}</div>
+                  <span style={{ display: "inline-flex", alignItems: "center", minHeight: "26px", padding: "0 9px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "11px" }}>{badge.label}</span>
+                </div>
+                <div style={{ color: "#475569", fontSize: "13px" }}>{sanitizeNickname(request.requesterName || request.requesterId)}</div>
+                <div style={{ color: "#64748b", fontSize: "12px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
+                <div style={{ color: "#64748b", fontSize: "12px" }}>{`생성일 ${formatDate(request.createdAt)}`}</div>
+              </article>
+            </div>
+          );
+        })}
+      </div>
+    );
+  } else if (activePanel === "sentRequests") {
+    detailTitle = "보낸 요청";
+    detailContent = lists.sentRequests.length === 0 ? (
+      <StatePanel kind="empty" compact title="아직 보낸 요청이 없습니다." />
+    ) : (
+      <div style={{ display: "grid", gap: "10px" }}>
+        {lists.sentRequests.map((request) => {
+          const badge = getStatusBadge(request.status);
+          const roleText = sanitizeRole(request.role);
+          return (
+            <div key={`${request.teamCode}-${request.requesterId}-${request.createdAt}`} className="interactive-card">
+              <article style={{ padding: "14px", display: "grid", gap: "6px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+                  <div style={{ fontWeight: 800, color: "#111827" }}>{teamsByCode[request.teamCode] || request.teamCode}</div>
+                  <span style={{ display: "inline-flex", alignItems: "center", minHeight: "26px", padding: "0 9px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "11px" }}>{badge.label}</span>
+                </div>
+                <div style={{ color: "#64748b", fontSize: "12px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
+                <div style={{ color: "#64748b", fontSize: "12px" }}>{`생성일 ${formatDate(request.createdAt)}`}</div>
+              </article>
+            </div>
+          );
+        })}
+      </div>
+    );
+  } else {
+    detailTitle = "저장한 제출";
+    detailContent = lists.savedSubmissions.length === 0 ? (
+      <StatePanel kind="empty" compact title="아직 저장한 제출이 없습니다." />
+    ) : (
+      <div style={{ display: "grid", gap: "10px" }}>
+        {lists.savedSubmissions.map((item) => (
+          <div key={item.record.id} className="interactive-card">
+            <article style={{ padding: "14px", display: "grid", gap: "6px" }}>
+              <div style={{ fontWeight: 800, color: "#111827" }}>{getHackathonTitle(item.record.hackathonSlug)}</div>
+              <div style={{ color: "#64748b", fontSize: "12px" }}>{`저장일 ${formatDate(item.record.submittedAt)}`}</div>
+              {item.record.notes ? <div style={{ color: "#374151", fontSize: "13px", lineHeight: 1.6 }}>{item.record.notes}</div> : null}
+            </article>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <main className="page-shell">
       <div className="page-stack">
-        <section className="section-card" style={{ display: "grid", gap: "14px" }}>
+        <section className="page-hero page-hero--dark" style={{ display: "grid", gap: "14px" }}>
           <div style={{ display: "grid", gap: "6px" }}>
             <div className="eyebrow">Dashboard</div>
-            <h1 className="section-title" style={{ margin: 0 }}>{`${nickname || "멤버"}님의 활동`}</h1>
+            <h1 className="hero-title" style={{ margin: 0 }}>{`${nickname || "멤버"}님의 활동`}</h1>
           </div>
           <div className="hero-meta" style={{ marginTop: 0 }}>
             <span>{`대기중인 받은 요청 ${pendingReceivedRequests}건`}</span>
@@ -372,91 +495,13 @@ export default function DashboardPage() {
         ) : (
           <>
             <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
-              <SummaryCard label="내 팀" value={summary.myTeams} hint="참여 중인 팀을 확인할 수 있습니다." />
-              <SummaryCard label="받은 요청" value={summary.receivedRequests} hint={`대기중 ${pendingReceivedRequests}건`} />
-              <SummaryCard label="보낸 요청" value={summary.sentRequests} hint={`응답 대기 ${pendingSentRequests}건`} />
-              <SummaryCard label="보낸 쪽지" value={summary.sentMessages} hint="최근 보낸 메시지를 확인할 수 있습니다." />
-              <SummaryCard label="저장한 제출" value={summary.savedSubmissions} hint="제출한 항목과 메모를 다시 볼 수 있습니다." />
+              <SummaryCard label="내 팀" value={summary.myTeams} hint="참여 중인 팀" active={activePanel === "myTeams"} onClick={() => setActivePanel("myTeams")} />
+              <SummaryCard label="받은 요청" value={summary.receivedRequests} hint={`대기중 ${pendingReceivedRequests}건`} active={activePanel === "receivedRequests"} onClick={() => setActivePanel("receivedRequests")} />
+              <SummaryCard label="보낸 요청" value={summary.sentRequests} hint={`응답 대기 ${pendingSentRequests}건`} active={activePanel === "sentRequests"} onClick={() => setActivePanel("sentRequests")} />
+              <SummaryCard label="저장한 제출" value={summary.savedSubmissions} hint="최근 저장 내역" active={activePanel === "savedSubmissions"} onClick={() => setActivePanel("savedSubmissions")} />
             </section>
 
-            <SectionBlock title="받은 요청">
-              {lists.receivedRequests.length === 0 ? (
-                <StatePanel kind="empty" compact title="아직 받은 요청이 없습니다." />
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {lists.receivedRequests.map((request) => {
-                    const badge = getStatusBadge(request.status);
-                    const roleText = sanitizeRole(request.role);
-                    return (
-                      <article key={`${request.teamCode}-${request.requesterId}-${request.createdAt}`} style={{ borderRadius: "14px", border: "1px solid #edf0f5", background: "#fbfcfe", padding: "14px", display: "grid", gap: "6px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
-                          <div style={{ fontWeight: 800, color: "#111827" }}>{teamsByCode[request.teamCode] || request.teamCode}</div>
-                          <span style={{ display: "inline-flex", alignItems: "center", minHeight: "26px", padding: "0 9px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "11px" }}>{badge.label}</span>
-                        </div>
-                        <div style={{ color: "#475569", fontSize: "13px" }}>{sanitizeNickname(request.requesterName || request.requesterId)}</div>
-                        <div style={{ color: "#64748b", fontSize: "12px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
-                        <div style={{ color: "#64748b", fontSize: "12px" }}>{`생성일 ${formatDate(request.createdAt)}`}</div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </SectionBlock>
-
-            <SectionBlock title="보낸 요청">
-              {lists.sentRequests.length === 0 ? (
-                <StatePanel kind="empty" compact title="아직 보낸 요청이 없습니다." />
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {lists.sentRequests.map((request) => {
-                    const badge = getStatusBadge(request.status);
-                    const roleText = sanitizeRole(request.role);
-                    return (
-                      <article key={`${request.teamCode}-${request.requesterId}-${request.createdAt}`} style={{ borderRadius: "14px", border: "1px solid #edf0f5", background: "#fbfcfe", padding: "14px", display: "grid", gap: "6px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
-                          <div style={{ fontWeight: 800, color: "#111827" }}>{teamsByCode[request.teamCode] || request.teamCode}</div>
-                          <span style={{ display: "inline-flex", alignItems: "center", minHeight: "26px", padding: "0 9px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "11px" }}>{badge.label}</span>
-                        </div>
-                        <div style={{ color: "#64748b", fontSize: "12px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
-                        <div style={{ color: "#64748b", fontSize: "12px" }}>{`생성일 ${formatDate(request.createdAt)}`}</div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </SectionBlock>
-
-            <SectionBlock title="보낸 쪽지">
-              {lists.sentMessages.length === 0 ? (
-                <StatePanel kind="empty" compact title="아직 보낸 쪽지가 없습니다." />
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {lists.sentMessages.map((message) => (
-                    <article key={message.messageId} style={{ borderRadius: "14px", border: "1px solid #edf0f5", background: "#fbfcfe", padding: "14px", display: "grid", gap: "6px" }}>
-                      <div style={{ fontWeight: 800, color: "#111827" }}>{message.title}</div>
-                      <div style={{ color: "#64748b", fontSize: "12px" }}>{teamsByCode[message.teamCode] || message.teamCode}</div>
-                      <div style={{ color: "#64748b", fontSize: "12px" }}>{`생성일 ${formatDate(message.createdAt)}`}</div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </SectionBlock>
-
-            <SectionBlock title="저장한 제출">
-              {lists.savedSubmissions.length === 0 ? (
-                <StatePanel kind="empty" compact title="아직 저장한 제출이 없습니다." />
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {lists.savedSubmissions.map((item) => (
-                    <article key={item.record.id} style={{ borderRadius: "14px", border: "1px solid #edf0f5", background: "#fbfcfe", padding: "14px", display: "grid", gap: "6px" }}>
-                      <div style={{ fontWeight: 800, color: "#111827" }}>{getHackathonTitle(item.record.hackathonSlug)}</div>
-                      <div style={{ color: "#64748b", fontSize: "12px" }}>{`저장일 ${formatDate(item.record.submittedAt)}`}</div>
-                      {item.record.notes ? <div style={{ color: "#374151", fontSize: "13px", lineHeight: 1.6 }}>{item.record.notes}</div> : null}
-                    </article>
-                  ))}
-                </div>
-              )}
-            </SectionBlock>
+            <SectionBlock title={detailTitle}>{detailContent}</SectionBlock>
           </>
         )}
       </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -18,9 +18,12 @@ function formatDate(dateString: string) {
     minute: "2-digit",
   });
 }
-
+function decodeEscapedUnicode(value: string | null | undefined) {
+  if (!value) return "";
+  return String(value).replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
 function getPreview(summary: DirectMessageThreadSummary) {
-  if (!summary.lastMessage) return "아직 주고받은 메시지가 없습니다.";
+  if (!summary.lastMessage) return "아직 주고받은 쪽지가 없습니다.";
 
   const preview = summary.lastMessage.body.replace(/\s+/g, " ").trim();
   if (preview.length <= 56) return preview;
@@ -41,7 +44,7 @@ export default function MessagesPage() {
         const session = getCurrentSession();
         const nextUserId = session?.userId ?? "";
         setUserId(nextUserId);
-        setNickname(session?.nickname ?? "");
+        setNickname(decodeEscapedUnicode(session?.nickname ?? ""));
 
         if (!nextUserId) {
           setThreads([]);
@@ -76,31 +79,30 @@ export default function MessagesPage() {
   return (
     <main className="page-shell">
       <div className="page-stack">
-        <section className="section-card" style={{ display: "grid", gap: "10px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "end", flexWrap: "wrap" }}>
-            <div style={{ display: "grid", gap: "4px" }}>
-              <h1 className="section-title" style={{ margin: 0 }}>{"쪽지함"}</h1>
-              {userId ? (
-                <p className="muted" style={{ margin: 0 }}>
-                  {`${nickname}님과 주고받은 대화를 확인할 수 있습니다.`}
-                </p>
-              ) : null}
-            </div>
+        <section className="page-hero page-hero--dark" style={{ display: "grid", gap: "10px" }}>
+          <div style={{ display: "grid", gap: "6px" }}>
+            <div className="eyebrow">쪽지함</div>
+            <h1 className="hero-title" style={{ margin: 0 }}>메시지</h1>
             {userId ? (
-              <div className="hero-meta" style={{ marginTop: 0 }}>
-                <span>{`대화방 ${threads.length}개`}</span>
-                <span>{`읽지 않음 ${unreadCount}개`}</span>
-              </div>
+              <p className="hero-description" style={{ margin: 0 }}>
+                {`${nickname}님, 지금 확인할 수 있는 대화가 있습니다.`}
+              </p>
             ) : null}
           </div>
+          {userId ? (
+            <div className="hero-meta" style={{ marginTop: 0 }}>
+              <span>{`전체 대화 ${threads.length}건`}</span>
+              <span>{`읽지 않은 ${unreadCount}건`}</span>
+            </div>
+          ) : null}
         </section>
 
         {!ready ? (
           <StatePanel kind="loading" title="쪽지함을 불러오는 중입니다" description="잠시만 기다려 주세요." />
         ) : !userId ? (
           <section className="section-card" style={{ display: "grid", gap: "12px" }}>
-            <h2 className="section-title">Login이 필요합니다</h2>
-            <p className="muted" style={{ margin: 0 }}>{"쪽지함은 Login 후 확인할 수 있습니다."}</p>
+            <h2 className="section-title">Login이 필요합니다.</h2>
+            <p className="muted" style={{ margin: 0 }}>쪽지함은 Login 후 확인할 수 있습니다.</p>
             <div>
               <Link href="/auth?mode=login&redirect=/messages" className="btn btn-secondary">
                 Login
@@ -126,7 +128,7 @@ export default function MessagesPage() {
                       {summary.thread.teamName ? <div className="muted" style={{ fontSize: "13px" }}>{summary.thread.teamName}</div> : null}
                     </div>
                     <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      {summary.unreadCount > 0 ? <span className="status-chip status-chip--pending">{`읽지 않음 ${summary.unreadCount}`}</span> : null}
+                      {summary.unreadCount > 0 ? <span className="status-chip status-chip--pending">읽지 않음 {summary.unreadCount}</span> : null}
                       <span className="muted" style={{ fontSize: "12px" }}>
                         {summary.lastMessage ? formatDate(summary.lastMessage.createdAt) : formatDate(summary.thread.updatedAt)}
                       </span>

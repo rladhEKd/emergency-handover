@@ -1,10 +1,15 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import initialTeams from "../data/public_teams.json";
 import { useEffect, useMemo, useState } from "react";
 import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../lib/local-auth";
 import StatePanel from "./ui/StatePanel";
+import {
+  DIRECT_MESSAGES_CHANGED_EVENT,
+  listDirectMessageThreadSummaries,
+  type DirectMessageThreadSummary,
+} from "../lib/direct-messages";
 
 type Team = {
   teamCode: string;
@@ -23,22 +28,9 @@ type TeamJoinRequest = {
   portfolioUrl?: string;
 };
 
-type TeamMessage = {
-  messageId: string;
-  teamCode: string;
-  senderUserId: string;
-  senderNickname: string;
-  receiverUserId: string;
-  receiverNickname: string;
-  title: string;
-  content: string;
-  createdAt: string;
-};
-
-type TabKey = "receivedRequests" | "sentRequests" | "receivedMessages" | "sentMessages";
+type TabKey = "receivedRequests" | "sentRequests";
 
 const TEAM_JOIN_REQUESTS_PREFIX = "team-join-requests-v1:";
-const TEAM_MESSAGES_STORAGE_KEY = "team-messages-v1";
 const MESSAGE_HUB_CHANGED_EVENT = "message-hub-changed";
 
 function formatDate(dateString: string) {
@@ -57,17 +49,24 @@ function compareRequests(a: TeamJoinRequest, b: TeamJoinRequest) {
   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 }
 
+function decodeEscapedUnicode(value: string | null | undefined) {
+  if (!value) return "";
+  return String(value).replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 function isBrokenSystemText(value: string | null | undefined) {
   const normalized = (value ?? "").trim();
   return !normalized || normalized === "?" || normalized === "??" || normalized === "???" || normalized.includes("?");
 }
 
 function sanitizeNickname(value: string | null | undefined) {
-  return isBrokenSystemText(value) ? "멤버" : String(value).trim();
+  const decoded = decodeEscapedUnicode(value);
+  return isBrokenSystemText(decoded) ? "멤버" : decoded.trim();
 }
 
 function sanitizeRole(value: string | null | undefined) {
-  return isBrokenSystemText(value) ? "" : String(value).trim();
+  const decoded = decodeEscapedUnicode(value);
+  return isBrokenSystemText(decoded) ? "" : decoded.trim();
 }
 
 function getStatusBadge(status: "pending" | "accepted" | "rejected") {
@@ -97,51 +96,6 @@ function readTeams() {
 
 function normalizeUserId(value: string | null | undefined) {
   return (value ?? "").trim();
-}
-
-function toMessage(message: Partial<TeamMessage>) {
-  const messageId = typeof message.messageId === "string" ? message.messageId : "";
-  const teamCode = typeof message.teamCode === "string" ? message.teamCode : "";
-  const senderUserId = normalizeUserId(message.senderUserId);
-  const receiverUserId = normalizeUserId(message.receiverUserId);
-  const title = typeof message.title === "string" ? message.title : "";
-  const content = typeof message.content === "string" ? message.content : "";
-  const createdAt = typeof message.createdAt === "string" ? message.createdAt : "";
-
-  if (!messageId || !teamCode || !senderUserId || !receiverUserId || !title || !content || !createdAt) {
-    return null;
-  }
-
-  return {
-    messageId,
-    teamCode,
-    senderUserId,
-    senderNickname: sanitizeNickname(message.senderNickname),
-    receiverUserId,
-    receiverNickname: sanitizeNickname(message.receiverNickname),
-    title,
-    content,
-    createdAt,
-  } satisfies TeamMessage;
-}
-
-function readMessages() {
-  if (typeof window === "undefined") return [] as TeamMessage[];
-
-  try {
-    const raw = window.localStorage.getItem(TEAM_MESSAGES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Partial<TeamMessage>[];
-    if (!Array.isArray(parsed)) return [];
-    const messages = parsed.map((message) => toMessage(message)).filter((message): message is TeamMessage => message !== null);
-    const normalized = JSON.stringify(messages);
-    if (normalized !== raw) {
-      window.localStorage.setItem(TEAM_MESSAGES_STORAGE_KEY, normalized);
-    }
-    return messages;
-  } catch {
-    return [];
-  }
 }
 
 function readJoinRequests() {
@@ -204,19 +158,16 @@ function Overlay({ children, onClose, ariaLabel }: { children: React.ReactNode; 
 }
 
 export default function FloatingMessageHub() {
-  const [nickname, setNickname] = useState("");
   const [userId, setUserId] = useState("");
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("receivedRequests");
-  const [selectedMessage, setSelectedMessage] = useState<TeamMessage | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<{ item: TeamJoinRequest; ownerView: boolean } | null>(null);
   const [hubReady, setHubReady] = useState(false);
   const [hubError, setHubError] = useState("");
   const [teamsByCode, setTeamsByCode] = useState<Record<string, string>>({});
   const [receivedRequests, setReceivedRequests] = useState<TeamJoinRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<TeamJoinRequest[]>([]);
-  const [receivedMessages, setReceivedMessages] = useState<TeamMessage[]>([]);
-  const [sentMessages, setSentMessages] = useState<TeamMessage[]>([]);
+  const [recentThreads, setRecentThreads] = useState<DirectMessageThreadSummary[]>([]);
 
   useEffect(() => {
     function syncHub() {
@@ -224,17 +175,14 @@ export default function FloatingMessageHub() {
         setHubError("");
         const session = getCurrentSession();
         const nextUserId = normalizeUserId(session?.userId);
-        setNickname(session?.nickname ?? "");
         setUserId(nextUserId);
 
         if (!nextUserId) {
           setTeamsByCode({});
           setReceivedRequests([]);
           setSentRequests([]);
-          setReceivedMessages([]);
-          setSentMessages([]);
+          setRecentThreads([]);
           setOpen(false);
-          setSelectedMessage(null);
           setSelectedRequest(null);
           setHubReady(true);
           return;
@@ -248,13 +196,11 @@ export default function FloatingMessageHub() {
         const teamOwners = getTeamOwners();
         const myTeamCodes = teams.filter((team) => teamOwners[team.teamCode] === nextUserId).map((team) => team.teamCode);
         const allRequests = readJoinRequests();
-        const allMessages = readMessages();
 
         setTeamsByCode(teamsMap);
         setReceivedRequests(allRequests.filter((request) => myTeamCodes.includes(request.teamCode)).sort(compareRequests));
         setSentRequests(allRequests.filter((request) => request.requesterId === nextUserId).sort(compareRequests));
-        setReceivedMessages(allMessages.filter((message) => normalizeUserId(message.receiverUserId) === nextUserId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-        setSentMessages(allMessages.filter((message) => normalizeUserId(message.senderUserId) === nextUserId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        setRecentThreads(listDirectMessageThreadSummaries(nextUserId).slice(0, 3));
         setHubReady(true);
       } catch {
         setHubError("MSG 허브를 불러오는 중 문제가 발생했습니다.");
@@ -265,12 +211,14 @@ export default function FloatingMessageHub() {
     syncHub();
     window.addEventListener(AUTH_CHANGED_EVENT, syncHub);
     window.addEventListener(MESSAGE_HUB_CHANGED_EVENT, syncHub);
+    window.addEventListener(DIRECT_MESSAGES_CHANGED_EVENT, syncHub);
     window.addEventListener("storage", syncHub);
     window.addEventListener("focus", syncHub);
 
     return () => {
       window.removeEventListener(AUTH_CHANGED_EVENT, syncHub);
       window.removeEventListener(MESSAGE_HUB_CHANGED_EVENT, syncHub);
+      window.removeEventListener(DIRECT_MESSAGES_CHANGED_EVENT, syncHub);
       window.removeEventListener("storage", syncHub);
       window.removeEventListener("focus", syncHub);
     };
@@ -295,7 +243,8 @@ export default function FloatingMessageHub() {
   }
 
   const pendingReceivedRequestCount = receivedRequests.filter((request) => request.status === "pending").length;
-  const hubBadgeCount = pendingReceivedRequestCount + receivedMessages.length;
+  const unreadMessageCount = recentThreads.reduce((sum, thread) => sum + thread.unreadCount, 0);
+  const hubBadgeCount = pendingReceivedRequestCount + unreadMessageCount;
 
   function updateJoinRequestStatus(item: TeamJoinRequest, nextStatus: "accepted" | "rejected") {
     if (typeof window === "undefined") return;
@@ -364,67 +313,31 @@ export default function FloatingMessageHub() {
     return (
       <div style={{ display: "grid", gap: "12px" }}>
         {entries.map(([teamCode, items]) => (
-          <div key={teamCode} style={{ borderRadius: "18px", background: "#fbfcfe", border: "1px solid #edf0f5", padding: "16px" }}>
-            <div style={{ fontWeight: 900, color: "#111827", marginBottom: "12px" }}>{teamsByCode[teamCode] || teamCode}</div>
-            <div style={{ display: "grid", gap: "10px" }}>
-              {items.map((item) => {
-                const badge = getStatusBadge(item.status);
-                const roleText = sanitizeRole(item.role);
-                return (
-                  <div key={`${item.teamCode}-${item.requesterId}-${item.createdAt}`} style={{ borderRadius: "14px", background: item.status === "pending" ? "#f8fbff" : "#ffffff", border: item.status === "pending" ? "1px solid #bfdbfe" : "1px solid #e5e7eb", boxShadow: item.status === "pending" ? "0 10px 24px rgba(37, 99, 235, 0.08)" : "none", padding: "12px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
+          <div key={teamCode} style={{ display: "grid", gap: "10px" }}>
+            <div style={{ fontWeight: 900, color: "#111827" }}>{teamsByCode[teamCode] || teamCode}</div>
+            {items.map((item) => {
+              const badge = getStatusBadge(item.status);
+              const roleText = sanitizeRole(item.role);
+              return (
+                <div key={`${item.teamCode}-${item.requesterId}-${item.createdAt}`} className="interactive-card" style={{ borderColor: item.status === "pending" ? "#bfdbfe" : undefined }}>
+                  <div style={{ padding: "12px", display: "grid", gap: "6px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 800, color: "#111827" }}>{ownerView ? sanitizeNickname(item.requesterName || item.requesterId) : teamsByCode[item.teamCode] || item.teamCode}</div>
                         <div style={{ color: "#6b7280", fontSize: "13px", marginTop: "4px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
                       </div>
                       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                         <span style={{ display: "inline-block", padding: "6px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
-                        <button type="button" onClick={() => setSelectedRequest({ item, ownerView })} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "8px 12px", borderRadius: "10px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
+                        <button type="button" onClick={() => setSelectedRequest({ item, ownerView })} className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>
                           상세 보기
                         </button>
                       </div>
                     </div>
                     <div style={{ color: "#6b7280", fontSize: "13px" }}>{`생성일 ${formatDate(item.createdAt)}`}</div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  function renderMessageList(items: TeamMessage[], emptyText: string, type: "received" | "sent") {
-    if (!hubReady) {
-      return <StatePanel kind="loading" compact title="목록을 불러오는 중입니다" description="잠시만 기다려 주세요." />;
-    }
-
-    if (hubError) {
-      return <StatePanel kind="error" compact title={hubError} description="다시 시도해 주세요." />;
-    }
-
-    if (items.length === 0) {
-      return <StatePanel kind="empty" compact title={emptyText} />;
-    }
-
-    return (
-      <div style={{ display: "grid", gap: "12px" }}>
-        {items.map((item) => (
-          <div key={item.messageId} style={{ borderRadius: "18px", background: "#fbfcfe", border: "1px solid #edf0f5", padding: "16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "8px" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 900, color: "#111827" }}>{item.title}</div>
-                <div style={{ color: "#6b7280", fontSize: "14px" }}>{teamsByCode[item.teamCode] || item.teamCode}</div>
-                <div style={{ color: "#374151", fontSize: "13px", marginTop: "6px" }}>
-                  {type === "received" ? `보낸 사람 ${sanitizeNickname(item.senderNickname)}` : `받는 사람 ${sanitizeNickname(item.receiverNickname)}`}
                 </div>
-              </div>
-              <button type="button" onClick={() => setSelectedMessage(item)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "8px 12px", borderRadius: "10px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, fontSize: "12px", cursor: "pointer" }}>
-                상세 보기
-              </button>
-            </div>
-            <div style={{ color: "#6b7280", fontSize: "13px" }}>{`생성일 ${formatDate(item.createdAt)}`}</div>
+              );
+            })}
           </div>
         ))}
       </div>
@@ -452,16 +365,16 @@ export default function FloatingMessageHub() {
       </button>
 
       {open ? (
-        <div style={{ position: "fixed", right: "20px", bottom: "92px", width: "min(400px, calc(100vw - 24px))", maxHeight: "min(70vh, 680px)", overflow: "hidden", borderRadius: "24px", background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)", zIndex: 70, display: "grid", gridTemplateRows: "auto auto 1fr" }}>
+        <div style={{ position: "fixed", right: "20px", bottom: "92px", width: "min(400px, calc(100vw - 24px))", maxHeight: "min(70vh, 680px)", overflow: "hidden", borderRadius: "24px", background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)", zIndex: 70, display: "grid", gridTemplateRows: "auto auto 1fr auto" }}>
           <div style={{ padding: "18px 18px 12px", borderBottom: "1px solid #eef2f7" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center" }}>
               <div style={{ display: "grid", gap: "4px" }}>
                 <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800 }}>MSG</div>
-                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{"요청과 알림"}</div>
+                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>요청과 알림</div>
               </div>
               <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <Link href="/messages" className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>{"쪽지함"}</Link>
-                <button type="button" onClick={() => setOpen(false)} style={{ width: "36px", height: "36px", borderRadius: "999px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>X</button>
+                <Link href="/messages" className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>쪽지함</Link>
+                <button type="button" onClick={() => setOpen(false)} className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>닫기</button>
               </div>
             </div>
           </div>
@@ -470,20 +383,51 @@ export default function FloatingMessageHub() {
             {[
               { key: "receivedRequests", label: "받은 요청", count: receivedRequests.length },
               { key: "sentRequests", label: "보낸 요청", count: sentRequests.length },
-              { key: "receivedMessages", label: "받은 쪽지", count: receivedMessages.length },
-              { key: "sentMessages", label: "보낸 쪽지", count: sentMessages.length },
             ].map((tab) => (
-              <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key as TabKey)} style={{ padding: "10px 12px", borderRadius: "12px", border: activeTab === tab.key ? "1px solid #2563eb" : "1px solid #d1d5db", background: activeTab === tab.key ? "#dbeafe" : "#ffffff", color: activeTab === tab.key ? "#1d4ed8" : "#374151", fontWeight: 800, fontSize: "13px", boxShadow: activeTab === tab.key ? "0 10px 24px rgba(37, 99, 235, 0.12)" : "none", cursor: "pointer" }}>
+              <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key as TabKey)} className="btn btn-secondary" style={{ minHeight: "36px", paddingInline: "12px", borderColor: activeTab === tab.key ? "#2563eb" : undefined, color: activeTab === tab.key ? "#1d4ed8" : undefined, background: activeTab === tab.key ? "#dbeafe" : undefined }}>
                 {tab.label} ({tab.count})
               </button>
             ))}
           </div>
 
-          <div style={{ overflow: "auto", padding: "18px" }}>
+          <div style={{ overflow: "auto", padding: "18px", display: "grid", gap: "18px" }}>
             {activeTab === "receivedRequests" ? renderRequestGroups(groupedReceivedRequests, "아직 받은 요청이 없습니다.", true) : null}
             {activeTab === "sentRequests" ? renderRequestGroups(groupedSentRequests, "아직 보낸 요청이 없습니다.", false) : null}
-            {activeTab === "receivedMessages" ? renderMessageList(receivedMessages, "아직 받은 쪽지가 없습니다.", "received") : null}
-            {activeTab === "sentMessages" ? renderMessageList(sentMessages, "아직 보낸 쪽지가 없습니다.", "sent") : null}
+
+            <div style={{ display: "grid", gap: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center" }}>
+                <div style={{ fontWeight: 900, color: "#111827" }}>최근 대화</div>
+                <Link href="/messages" className="subtle-link">전체 보기</Link>
+              </div>
+              {!hubReady ? (
+                <StatePanel kind="loading" compact title="대화를 불러오는 중입니다" description="잠시만 기다려 주세요." />
+              ) : hubError ? (
+                <StatePanel kind="error" compact title={hubError} description="다시 시도해 주세요." />
+              ) : recentThreads.length === 0 ? (
+                <StatePanel kind="empty" compact title="아직 최근 대화가 없습니다." />
+              ) : (
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {recentThreads.map((summary) => (
+                    <Link key={summary.thread.id} href={`/messages/${summary.thread.id}`} className="interactive-card" style={{ textDecoration: "none", color: "inherit" }}>
+                      <article style={{ padding: "12px", display: "grid", gap: "6px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 800, color: "#111827" }}>{summary.otherNickname}</div>
+                            <div style={{ color: "#6b7280", fontSize: "12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {summary.lastMessage ? summary.lastMessage.body : "아직 주고받은 쪽지가 없습니다."}
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gap: "6px", justifyItems: "end" }}>
+                            {summary.unreadCount > 0 ? <span className="status-chip status-chip--pending">읽지 않음 {summary.unreadCount}</span> : null}
+                            <span className="muted" style={{ fontSize: "12px" }}>{summary.lastMessage ? formatDate(summary.lastMessage.createdAt) : formatDate(summary.thread.updatedAt)}</span>
+                          </div>
+                        </div>
+                      </article>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : null}
@@ -493,10 +437,10 @@ export default function FloatingMessageHub() {
           <div style={{ position: "fixed", right: "20px", bottom: "92px", width: "min(420px, calc(100vw - 24px))", borderRadius: "24px", background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)", zIndex: 72, padding: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
               <div>
-                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>{"요청 상세"}</div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>요청 상세</div>
                 <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}</div>
               </div>
-              <button type="button" onClick={() => setSelectedRequest(null)} style={{ width: "36px", height: "36px", borderRadius: "999px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>X</button>
+              <button type="button" onClick={() => setSelectedRequest(null)} className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>닫기</button>
             </div>
 
             {(() => {
@@ -506,7 +450,7 @@ export default function FloatingMessageHub() {
                 <>
                   <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
                     <div>
-                      {"상태"}
+                      상태
                       <span style={{ display: "inline-block", marginLeft: "8px", padding: "4px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
                     </div>
                     <div>{selectedRequest.ownerView ? `요청자 ${sanitizeNickname(selectedRequest.item.requesterName || selectedRequest.item.requesterId)}` : `팀 ${teamsByCode[selectedRequest.item.teamCode] || selectedRequest.item.teamCode}`}</div>
@@ -517,50 +461,27 @@ export default function FloatingMessageHub() {
 
                   {selectedRequest.item.message?.trim() ? (
                     <div style={{ marginBottom: "12px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>{"지원 메시지"}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>지원 메시지</div>
                       <div style={{ borderRadius: "16px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px", color: "#111827", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{selectedRequest.item.message}</div>
                     </div>
                   ) : null}
 
                   {selectedRequest.item.portfolioUrl?.trim() ? (
                     <div style={{ marginBottom: "16px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>{"포트폴리오 또는 GitHub"}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>포트폴리오 또는 GitHub</div>
                       <a href={selectedRequest.item.portfolioUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 800, wordBreak: "break-all" }}>{selectedRequest.item.portfolioUrl}</a>
                     </div>
                   ) : null}
 
                   {selectedRequest.ownerView && selectedRequest.item.status === "pending" ? (
                     <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest.item, "rejected")} style={{ padding: "10px 14px", borderRadius: "12px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>{"거절"}</button>
-                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest.item, "accepted")} style={{ padding: "10px 14px", borderRadius: "12px", border: "none", background: "#2563eb", color: "#ffffff", fontWeight: 800, cursor: "pointer" }}>{"수락"}</button>
+                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest.item, "rejected")} className="btn btn-secondary">거절</button>
+                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest.item, "accepted")} className="btn btn-primary">수락</button>
                     </div>
                   ) : null}
                 </>
               );
             })()}
-          </div>
-        </Overlay>
-      ) : null}
-
-      {selectedMessage ? (
-        <Overlay ariaLabel="쪽지 상세 닫기" onClose={() => setSelectedMessage(null)}>
-          <div style={{ position: "fixed", right: "20px", bottom: "92px", width: "min(420px, calc(100vw - 24px))", borderRadius: "24px", background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)", zIndex: 72, padding: "20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
-              <div>
-                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>{"쪽지 상세"}</div>
-                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{selectedMessage.title}</div>
-              </div>
-              <button type="button" onClick={() => setSelectedMessage(null)} style={{ width: "36px", height: "36px", borderRadius: "999px", border: "1px solid #d1d5db", background: "#ffffff", color: "#374151", fontWeight: 800, cursor: "pointer" }}>X</button>
-            </div>
-
-            <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
-              <div>{`팀 ${teamsByCode[selectedMessage.teamCode] || selectedMessage.teamCode}`}</div>
-              <div>{`보낸 사람 ${sanitizeNickname(selectedMessage.senderNickname)}`}</div>
-              <div>{`받는 사람 ${sanitizeNickname(selectedMessage.receiverNickname)}`}</div>
-              <div>{`생성 시각 ${formatDate(selectedMessage.createdAt)}`}</div>
-            </div>
-
-            <div style={{ borderRadius: "18px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "16px", color: "#111827", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{selectedMessage.content}</div>
           </div>
         </Overlay>
       ) : null}
