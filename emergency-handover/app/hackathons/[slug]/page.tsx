@@ -81,6 +81,10 @@ export type DetailHackathon = {
         key: string;
         title: string;
         format: string;
+        inputModes?: ("memo" | "text" | "url" | "file")[];
+        allowedFileTypes?: ("zip" | "pdf" | "csv")[];
+        deadlineAt?: string;
+        required?: boolean;
       }[];
     };
     leaderboard?: {

@@ -278,17 +278,27 @@
             {
               "key": "plan",
               "title": "기획서(1차 제출)",
-              "format": "text_or_url"
+              "format": "text_or_url",
+              "inputModes": ["memo", "url"],
+              "deadlineAt": "2026-03-30T10:00:00+09:00",
+              "required": true
             },
             {
               "key": "web",
               "title": "최종 웹링크 제출",
-              "format": "url"
+              "format": "url",
+              "inputModes": ["url", "memo"],
+              "deadlineAt": "2026-04-06T10:00:00+09:00",
+              "required": true
             },
             {
               "key": "pdf",
               "title": "최종 솔루션 PDF 제출",
-              "format": "pdf_url"
+              "format": "pdf_url",
+              "inputModes": ["file", "memo"],
+              "allowedFileTypes": ["pdf"],
+              "deadlineAt": "2026-04-13T10:00:00+09:00",
+              "required": true
             }
           ]
         },

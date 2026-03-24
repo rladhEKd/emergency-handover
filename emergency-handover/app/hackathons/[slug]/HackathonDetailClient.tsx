@@ -6,7 +6,25 @@ import { useEffect, useMemo, useState } from "react";
 import StatePanel from "../../../components/ui/StatePanel";
 import leaderboardData from "../../../data/public_leaderboard.json";
 import initialTeams from "../../../data/public_teams.json";
+import {
+  MAX_SUBMISSION_FILE_SIZE,
+  buildSubmissionConfigs,
+  formatFileSize,
+  getSubmissionStatusLabel,
+  isDeadlineClosed,
+  matchesAllowedFileType,
+  type SubmissionFileType,
+  type SubmissionInputMode,
+  type SubmissionItemConfig,
+  type SubmissionItemSource,
+} from "../../../lib/hackathon-submissions";
 import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../../../lib/local-auth";
+import {
+  deleteSubmissionFile,
+  getSubmissionFileBlob,
+  saveSubmissionFile,
+  type StoredSubmissionFileMeta,
+} from "../../../lib/submission-files";
 import type { DetailHackathon, Hackathon } from "./page";
 
 type TabKey =
@@ -54,18 +72,31 @@ type LeaderboardData = Leaderboard & {
   extraLeaderboards?: Leaderboard[];
 };
 
-type SubmissionItem = {
-  key: string;
-  title: string;
-  format: string;
-};
-
 type SubmissionRecord = {
   id: string;
+  userId: string;
   hackathonSlug: string;
+  itemKey: string;
   submittedAt: string;
-  notes: string;
-  values: Record<string, string>;
+  updatedAt: string;
+  memo: string;
+  textValue: string;
+  urlValue: string;
+  fileId?: string;
+  originalFilename?: string;
+  mimeType?: string;
+  size?: number;
+};
+
+type SubmissionDraft = {
+  memo: string;
+  textValue: string;
+  urlValue: string;
+  selectedFile: File | null;
+  selectedFileName: string;
+  selectedFileSize: number;
+  selectedFileType: string;
+  clearExistingFile: boolean;
 };
 
 type TeamJoinStatus = "pending" | "accepted" | "rejected";
@@ -146,13 +177,6 @@ function getTeamJoinRequestsStorageKey(slug: string) {
   return `${TEAM_JOIN_REQUESTS_PREFIX}:${slug}`;
 }
 
-function makeInitialSubmissionValues(items: SubmissionItem[]) {
-  return items.reduce<Record<string, string>>((acc, item) => {
-    acc[item.key] = "";
-    return acc;
-  }, {});
-}
-
 function isUrlFormat(format: string) {
   return format === "url" || format === "pdf_url";
 }
@@ -165,6 +189,88 @@ function getInputPlaceholder(format: string) {
   if (isUrlFormat(format)) return "https://example.com";
   if (format === "text_or_url") return "텍스트를 입력하거나 URL을 붙여 넣어 주세요";
   return "내용을 입력해 주세요";
+}
+
+function makeEmptySubmissionDraft(): SubmissionDraft {
+  return {
+    memo: "",
+    textValue: "",
+    urlValue: "",
+    selectedFile: null,
+    selectedFileName: "",
+    selectedFileSize: 0,
+    selectedFileType: "",
+    clearExistingFile: false,
+  };
+}
+
+function makeInitialSubmissionDrafts(items: SubmissionItemConfig[]) {
+  return items.reduce<Record<string, SubmissionDraft>>((acc, item) => {
+    acc[item.key] = makeEmptySubmissionDraft();
+    return acc;
+  }, {});
+}
+
+function getRecordForItem(records: SubmissionRecord[], itemKey: string) {
+  return records.find((record) => record.itemKey === itemKey) ?? null;
+}
+
+function normalizeLegacySubmissionHistory(
+  records: unknown,
+  configs: SubmissionItemConfig[],
+  userId: string,
+  hackathonSlug: string
+) {
+  if (!Array.isArray(records)) return [] as SubmissionRecord[];
+
+  const normalized: SubmissionRecord[] = [];
+
+  for (const record of records) {
+    if (!record || typeof record !== "object") continue;
+
+    const candidate = record as Record<string, unknown>;
+    if (typeof candidate.itemKey === "string") {
+      normalized.push({
+        id: typeof candidate.id === "string" ? candidate.id : `${hackathonSlug}-${candidate.itemKey}-${userId}`,
+        userId: typeof candidate.userId === "string" ? candidate.userId : userId,
+        hackathonSlug: typeof candidate.hackathonSlug === "string" ? candidate.hackathonSlug : hackathonSlug,
+        itemKey: candidate.itemKey,
+        submittedAt: typeof candidate.submittedAt === "string" ? candidate.submittedAt : new Date().toISOString(),
+        updatedAt: typeof candidate.updatedAt === "string" ? candidate.updatedAt : typeof candidate.submittedAt === "string" ? candidate.submittedAt : new Date().toISOString(),
+        memo: typeof candidate.memo === "string" ? candidate.memo : "",
+        textValue: typeof candidate.textValue === "string" ? candidate.textValue : "",
+        urlValue: typeof candidate.urlValue === "string" ? candidate.urlValue : "",
+        fileId: typeof candidate.fileId === "string" ? candidate.fileId : undefined,
+        originalFilename: typeof candidate.originalFilename === "string" ? candidate.originalFilename : undefined,
+        mimeType: typeof candidate.mimeType === "string" ? candidate.mimeType : undefined,
+        size: typeof candidate.size === "number" ? candidate.size : undefined,
+      });
+      continue;
+    }
+
+    const values = candidate.values;
+    if (!values || typeof values !== "object") continue;
+    const submittedAt = typeof candidate.submittedAt === "string" ? candidate.submittedAt : new Date().toISOString();
+    const notes = typeof candidate.notes === "string" ? candidate.notes : "";
+
+    for (const config of configs) {
+      const rawValue = (values as Record<string, unknown>)[config.key];
+      if (typeof rawValue !== "string" || !rawValue.trim()) continue;
+      normalized.push({
+        id: `${hackathonSlug}-${config.key}-${submittedAt}`,
+        userId,
+        hackathonSlug,
+        itemKey: config.key,
+        submittedAt,
+        updatedAt: submittedAt,
+        memo: notes,
+        textValue: config.inputModes.includes("url") && !config.inputModes.includes("memo") ? "" : rawValue,
+        urlValue: config.inputModes.includes("url") ? rawValue : "",
+      });
+    }
+  }
+
+  return normalized;
 }
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode; }) {
@@ -292,14 +398,19 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     [scheduleMilestones]
   );
   const submissionItems = useMemo(
-    () => (details?.sections.submit?.submissionItems ?? []) as SubmissionItem[],
-    [details]
+    () =>
+      buildSubmissionConfigs({
+        submissionItems: (details?.sections.submit?.submissionItems ?? []) as SubmissionItemSource[],
+        allowedArtifactTypes: details?.sections.submit?.allowedArtifactTypes,
+        submissionDeadlineAt: hackathon.period.submissionDeadlineAt,
+        scheduleMilestones,
+      }),
+    [details, hackathon.period.submissionDeadlineAt, scheduleMilestones]
   );
-  const [submissionValues, setSubmissionValues] = useState<Record<string, string>>({});
-  const [submissionNotes, setSubmissionNotes] = useState("");
+  const [submissionDrafts, setSubmissionDrafts] = useState<Record<string, SubmissionDraft>>({});
   const [submissionHistory, setSubmissionHistory] = useState<SubmissionRecord[]>([]);
-  const [submitError, setSubmitError] = useState("");
-  const [submitSuccess, setSubmitSuccess] = useState("");
+  const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
+  const [submitSuccess, setSubmitSuccess] = useState<Record<string, string>>({});
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentNickname, setCurrentNickname] = useState("");
   const [requestModalTeamCode, setRequestModalTeamCode] = useState("");
@@ -337,12 +448,11 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   }, [hackathon.slug]);
 
   useEffect(() => {
-    const initialValues = makeInitialSubmissionValues(submissionItems);
-    setSubmissionValues(initialValues);
-    setSubmissionNotes("");
+    const initialDrafts = makeInitialSubmissionDrafts(submissionItems);
+    setSubmissionDrafts(initialDrafts);
     setSubmissionLoadError("");
-    setSubmitError("");
-    setSubmitSuccess("");
+    setSubmitErrors({});
+    setSubmitSuccess({});
 
     if (!currentUserId) {
       setSubmissionHistory([]);
@@ -356,18 +466,35 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
         return;
       }
 
-      const parsed = JSON.parse(stored) as SubmissionRecord[];
-      setSubmissionHistory(Array.isArray(parsed) ? parsed : []);
+      const parsed = JSON.parse(stored) as unknown;
+      const normalized = normalizeLegacySubmissionHistory(parsed, submissionItems, currentUserId, hackathon.slug);
+      setSubmissionHistory(normalized);
+
+      const hydratedDrafts = makeInitialSubmissionDrafts(submissionItems);
+      for (const item of submissionItems) {
+        const record = getRecordForItem(normalized, item.key);
+        if (!record) continue;
+        hydratedDrafts[item.key] = {
+          ...hydratedDrafts[item.key],
+          memo: record.memo,
+          textValue: record.textValue,
+          urlValue: record.urlValue,
+        };
+      }
+      setSubmissionDrafts(hydratedDrafts);
     } catch {
       setSubmissionHistory([]);
       setSubmissionLoadError("제출 이력을 불러오는 중 문제가 발생했습니다.");
     }
   }, [currentUserId, hackathon.slug, submissionItems]);
 
-  function handleSubmissionValueChange(key: string, value: string) {
-    setSubmissionValues((current) => ({
+  function updateSubmissionDraft(itemKey: string, patch: Partial<SubmissionDraft>) {
+    setSubmissionDrafts((current) => ({
       ...current,
-      [key]: value,
+      [itemKey]: {
+        ...(current[itemKey] ?? makeEmptySubmissionDraft()),
+        ...patch,
+      },
     }));
   }
 
@@ -483,59 +610,193 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     setPendingTeamAction(null);
   }
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function clearSubmitMessage(itemKey: string) {
+    setSubmitErrors((current) => ({ ...current, [itemKey]: "" }));
+    setSubmitSuccess((current) => ({ ...current, [itemKey]: "" }));
+  }
 
+  async function handleSelectedFile(item: SubmissionItemConfig, file: File | null) {
+    if (!file) {
+      updateSubmissionDraft(item.key, {
+        selectedFile: null,
+        selectedFileName: "",
+        selectedFileSize: 0,
+        selectedFileType: "",
+      });
+      return;
+    }
+
+    if (!matchesAllowedFileType(file, item.allowedFileTypes as SubmissionFileType[])) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "허용되지 않은 파일 형식입니다." }));
+      return;
+    }
+
+    if (file.size > MAX_SUBMISSION_FILE_SIZE) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "파일 크기가 제한을 초과했습니다." }));
+      return;
+    }
+
+    clearSubmitMessage(item.key);
+    updateSubmissionDraft(item.key, {
+      selectedFile: file,
+      selectedFileName: file.name,
+      selectedFileSize: file.size,
+      selectedFileType: file.type,
+      clearExistingFile: false,
+    });
+  }
+
+  async function handleDownloadStoredFile(record: SubmissionRecord) {
+    if (!record.fileId || !record.originalFilename) return;
+
+    const blob = await getSubmissionFileBlob(record.fileId);
+    if (!blob) {
+      setSubmitErrors((current) => ({ ...current, [record.itemKey]: "파일을 불러오지 못했습니다." }));
+      return;
+    }
+
+    const objectUrl = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = record.originalFilename;
+    anchor.click();
+    window.URL.revokeObjectURL(objectUrl);
+  }
+
+  async function handleSubmitItem(item: SubmissionItemConfig) {
     if (!currentUserId) {
-      setSubmitError("Submit을 저장하려면 Login이 필요합니다.");
-      setSubmitSuccess("");
+      setSubmitErrors((current) => ({ ...current, [item.key]: "제출을 저장하려면 Login이 필요합니다." }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
       return;
     }
 
-    if (submissionItems.length === 0) {
-      setSubmitError("이 해커톤에는 Submit 항목이 설정되어 있지 않습니다.");
-      setSubmitSuccess("");
+    if (isDeadlineClosed(item.deadlineAt)) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "제출 마감이 지나 수정할 수 없습니다." }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
       return;
     }
 
-    for (const item of submissionItems) {
-      const rawValue = submissionValues[item.key] ?? "";
-      const value = rawValue.trim();
+    const draft = submissionDrafts[item.key] ?? makeEmptySubmissionDraft();
+    const existing = getRecordForItem(submissionHistory, item.key);
+    const memo = draft.memo.trim();
+    const textValue = draft.textValue.trim();
+    const urlValue = draft.urlValue.trim();
 
-      if (!value) {
-        setSubmitError(`${item.title} 항목을 입력해 주세요.`);
-        setSubmitSuccess("");
-        return;
-      }
-
-      if (isUrlFormat(item.format) && !isValidUrl(value)) {
-        setSubmitError(`${item.title} 항목에 올바른 URL을 입력해 주세요.`);
-        setSubmitSuccess("");
-        return;
-      }
+    if (item.inputModes.includes("url") && urlValue && !isValidUrl(urlValue)) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "올바른 웹 링크를 입력해주세요." }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
+      return;
     }
 
-    const record: SubmissionRecord = {
-      id: `${hackathon.slug}-${Date.now()}`,
-      hackathonSlug: hackathon.slug,
-      submittedAt: new Date().toISOString(),
-      notes: submissionNotes.trim(),
-      values: submissionItems.reduce<Record<string, string>>((acc, item) => {
-        acc[item.key] = (submissionValues[item.key] ?? "").trim();
-        return acc;
-      }, {}),
-    };
+    const hasExistingFile = !!existing?.fileId && !draft.clearExistingFile;
+    const hasSelectedFile = !!draft.selectedFile;
 
-    const updatedHistory = [record, ...submissionHistory];
-    window.localStorage.setItem(
-      getSubmissionStorageKey(hackathon.slug, currentUserId),
-      JSON.stringify(updatedHistory)
-    );
-    setSubmissionHistory(updatedHistory);
-    setSubmissionValues(makeInitialSubmissionValues(submissionItems));
-    setSubmissionNotes("");
-    setSubmitError("");
-    setSubmitSuccess("정상적으로 저장되었습니다.");
+    const hasAnyValue =
+      memo.length > 0 ||
+      textValue.length > 0 ||
+      urlValue.length > 0 ||
+      hasExistingFile ||
+      hasSelectedFile;
+
+    if (item.required && !hasAnyValue) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: `${item.title} 항목을 입력해 주세요.` }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
+      return;
+    }
+
+    if ((item.format === "url" || (item.key === "web" && item.inputModes.includes("url"))) && !urlValue) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "올바른 웹 링크를 입력해주세요." }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
+      return;
+    }
+
+    if (item.inputModes.includes("file") && item.required && !hasExistingFile && !hasSelectedFile) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "파일을 첨부해 주세요." }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
+      return;
+    }
+
+    if (item.inputModes.includes("file") && hasSelectedFile && draft.selectedFile && !matchesAllowedFileType(draft.selectedFile, item.allowedFileTypes as SubmissionFileType[])) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "허용되지 않은 파일 형식입니다." }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
+      return;
+    }
+
+    if (item.inputModes.includes("file") && hasSelectedFile && draft.selectedFile && draft.selectedFile.size > MAX_SUBMISSION_FILE_SIZE) {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "파일 크기가 제한을 초과했습니다." }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
+      return;
+    }
+
+    try {
+      let nextFileMeta: StoredSubmissionFileMeta | null = existing?.fileId
+        ? {
+            fileId: existing.fileId,
+            originalFilename: existing.originalFilename ?? "",
+            mimeType: existing.mimeType ?? "",
+            size: existing.size ?? 0,
+          }
+        : null;
+
+      if (draft.clearExistingFile && existing?.fileId) {
+        await deleteSubmissionFile(existing.fileId);
+        nextFileMeta = null;
+      }
+
+      if (draft.selectedFile) {
+        if (existing?.fileId) {
+          await deleteSubmissionFile(existing.fileId);
+        }
+        nextFileMeta = await saveSubmissionFile(draft.selectedFile);
+      }
+
+      const now = new Date().toISOString();
+      const nextRecord: SubmissionRecord = {
+        id: existing?.id ?? `${hackathon.slug}-${item.key}-${currentUserId}`,
+        userId: currentUserId,
+        hackathonSlug: hackathon.slug,
+        itemKey: item.key,
+        submittedAt: existing?.submittedAt ?? now,
+        updatedAt: now,
+        memo,
+        textValue,
+        urlValue,
+        fileId: nextFileMeta?.fileId,
+        originalFilename: nextFileMeta?.originalFilename,
+        mimeType: nextFileMeta?.mimeType,
+        size: nextFileMeta?.size,
+      };
+
+      const nextHistory = [
+        nextRecord,
+        ...submissionHistory.filter((record) => record.itemKey !== item.key),
+      ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+      window.localStorage.setItem(
+        getSubmissionStorageKey(hackathon.slug, currentUserId),
+        JSON.stringify(nextHistory)
+      );
+
+      setSubmissionHistory(nextHistory);
+      updateSubmissionDraft(item.key, {
+        memo: nextRecord.memo,
+        textValue: nextRecord.textValue,
+        urlValue: nextRecord.urlValue,
+        selectedFile: null,
+        selectedFileName: "",
+        selectedFileSize: 0,
+        selectedFileType: "",
+        clearExistingFile: false,
+      });
+      setSubmitErrors((current) => ({ ...current, [item.key]: "" }));
+      setSubmitSuccess((current) => ({
+        ...current,
+        [item.key]: existing ? "수정 내용이 저장되었습니다." : "정상적으로 제출되었습니다.",
+      }));
+    } catch {
+      setSubmitErrors((current) => ({ ...current, [item.key]: "제출을 저장하는 중 문제가 발생했습니다." }));
+      setSubmitSuccess((current) => ({ ...current, [item.key]: "" }));
+    }
   }
 
   const authRedirectUrl = `/auth?mode=login&redirect=/hackathons/${hackathon.slug}`;
@@ -1232,264 +1493,229 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} style={{ marginTop: "18px" }}>
-                <div style={{ display: "grid", gap: "14px" }}>
-                  {submissionItems.map((item) => (
-                    <div key={item.key} style={{ paddingBottom: "14px", borderBottom: "1px solid #f3f4f6" }}>
-                      <label
-                        htmlFor={`submission-${item.key}`}
-                        style={{
-                          display: "block",
-                          marginBottom: "6px",
-                          fontSize: "14px",
-                          fontWeight: 800,
-                          color: "#111827",
-                        }}
-                      >
-                        {item.title}
-                      </label>
+              {submissionLoadError ? (
+                <div style={{ marginTop: "12px" }}>
+                  <StatePanel kind="error" compact title={submissionLoadError} description="다시 시도해 주세요." />
+                </div>
+              ) : null}
 
-                      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "10px" }}>형식 {item.format}</div>
+              <div style={{ marginTop: "18px", display: "grid", gap: "12px" }}>
+                {submissionItems.map((item) => {
+                  const draft = submissionDrafts[item.key] ?? makeEmptySubmissionDraft();
+                  const record = getRecordForItem(submissionHistory, item.key);
+                  const deadlineClosed = isDeadlineClosed(item.deadlineAt);
+                  const statusLabel = getSubmissionStatusLabel(!!record, deadlineClosed);
+                  const statusStyle =
+                    statusLabel === "마감됨"
+                      ? { background: "#f3f4f6", color: "#4b5563" }
+                      : statusLabel === "제출 완료"
+                        ? { background: "#e8f7ea", color: "#1e7a35" }
+                        : statusLabel === "수정 가능"
+                          ? { background: "#eef4ff", color: "#2457c5" }
+                          : { background: "#f3f4f6", color: "#6b7280" };
+                  const existingFileVisible = !!record?.fileId && !draft.clearExistingFile;
 
-                      {isUrlFormat(item.format) ? (
-                        <input
-                          id={`submission-${item.key}`}
-                          type="url"
-                          value={submissionValues[item.key] ?? ""}
-                          onChange={(e) => handleSubmissionValueChange(item.key, e.target.value)}
-                          placeholder={getInputPlaceholder(item.format)}
-                          style={{
-                            width: "100%",
-                            height: "44px",
-                            padding: "0 14px",
-                            borderRadius: "12px",
-                            border: "1px solid #d1d5db",
-                            outline: "none",
-                            fontSize: "14px",
-                            background: "#ffffff",
-                          }}
-                        />
-                      ) : (
-                        <textarea
-                          id={`submission-${item.key}`}
-                          value={submissionValues[item.key] ?? ""}
-                          onChange={(e) => handleSubmissionValueChange(item.key, e.target.value)}
-                          placeholder={getInputPlaceholder(item.format)}
-                          rows={item.format === "text_or_url" ? 3 : 4}
-                          style={{
-                            width: "100%",
-                            padding: "10px 14px",
-                            borderRadius: "12px",
-                            border: "1px solid #d1d5db",
-                            outline: "none",
-                            fontSize: "14px",
-                            background: "#ffffff",
-                            resize: "vertical",
-                          }}
-                        />
-                      )}
-                    </div>
-                  ))}
-
-                  <div>
-                    <label
-                      htmlFor="submission-notes"
+                  return (
+                    <section
+                      key={item.key}
                       style={{
-                        display: "block",
-                        marginBottom: "6px",
-                        fontSize: "14px",
-                        fontWeight: 800,
-                        color: "#111827",
+                        borderRadius: "12px",
+                        border: "1px solid #e5e7eb",
+                        background: "#ffffff",
+                        padding: "14px 16px",
                       }}
                     >
-                      메모
-                    </label>
-                    <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "10px" }}>선택 사항</div>
-                    <textarea
-                      id="submission-notes"
-                      value={submissionNotes}
-                      onChange={(e) => setSubmissionNotes(e.target.value)}
-                      placeholder="선택 사항"
-                      rows={3}
-                      style={{
-                        width: "100%",
-                        padding: "10px 14px",
-                        borderRadius: "12px",
-                        border: "1px solid #d1d5db",
-                        outline: "none",
-                        fontSize: "14px",
-                        background: "#ffffff",
-                        resize: "vertical",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {submitError && (
-                  <div
-                    style={{
-                      marginTop: "14px",
-                      borderRadius: "14px",
-                      padding: "12px 14px",
-                      background: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      color: "#b91c1c",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {submitError}
-                  </div>
-                )}
-
-                {submitSuccess && (
-                  <div
-                    style={{
-                      marginTop: "14px",
-                      borderRadius: "14px",
-                      padding: "12px 14px",
-                      background: "#ecfdf5",
-                      border: "1px solid #a7f3d0",
-                      color: "#047857",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {submitSuccess}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={!currentUserId}
-                  style={{
-                    marginTop: "16px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "12px 16px",
-                    borderRadius: "14px",
-                    background: currentUserId ? "#2563eb" : "#9ca3af",
-                    color: "#ffffff",
-                    fontWeight: 800,
-                    border: "none",
-                    cursor: currentUserId ? "pointer" : "not-allowed",
-                  }}
-                >
-                  제출 저장
-                </button>
-              </form>
-
-              <div style={{ marginTop: "22px" }}>
-                <h3 style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 800, color: "#111827" }}>
-                  저장 이력
-                </h3>
-
-                {!currentUserId ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#f8fafc",
-                      border: "1px solid #e5e7eb",
-                      padding: "14px 16px",
-                      color: "#6b7280",
-                      fontSize: "14px",
-                    }}
-                  >
-                    저장한 제출을 보려면 Login이 필요합니다.
-                  </div>
-                ) : submissionLoadError ? (
-                  <StatePanel
-                    kind="error"
-                    compact
-                    title={submissionLoadError}
-                    description="다시 시도해 주세요."
-                  />
-                ) : submissionHistory.length > 0 ? (
-                  <div style={{ display: "grid", gap: "10px" }}>
-                    {submissionHistory.map((record) => (
-                      <div
-                        key={record.id}
-                        style={{
-                          borderRadius: "12px",
-                          background: "#ffffff",
-                          border: "1px solid #e5e7eb",
-                          padding: "14px 16px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: "12px",
-                            flexWrap: "wrap",
-                            marginBottom: "10px",
-                          }}
-                        >
-                          <div style={{ fontWeight: 800, color: "#111827" }}>저장된 제출</div>
-                          <div style={{ color: "#6b7280", fontSize: "13px" }}>
-                            {formatDate(record.submittedAt)}
-                          </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "flex-start", marginBottom: "12px" }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: "15px", fontWeight: 800, color: "#111827", marginBottom: "4px" }}>{item.title}</div>
+                          <div style={{ fontSize: "12px", color: "#6b7280" }}>마감 {formatDate(item.deadlineAt)}</div>
                         </div>
-
-                        <div style={{ display: "grid", gap: "10px" }}>
-                          {submissionItems.map((item) => {
-                            const value = record.values[item.key];
-                            if (!value) return null;
-
-                            return (
-                              <div key={`${record.id}-${item.key}`}>
-                                <div
-                                  style={{
-                                    fontSize: "12px",
-                                    color: "#6b7280",
-                                    marginBottom: "4px",
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  {item.title}
-                                </div>
-
-                                {isUrlFormat(item.format) ? (
-                                  <a
-                                    href={value}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{ color: "#2563eb", fontWeight: 700, fontSize: "14px" }}
-                                  >
-                                    {value}
-                                  </a>
-                                ) : (
-                                  <div style={{ color: "#111827", lineHeight: 1.7, fontSize: "14px" }}>{value}</div>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {record.notes && (
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: "12px",
-                                  color: "#6b7280",
-                                  marginBottom: "4px",
-                                  fontWeight: 700,
-                                }}
-                              >
-                                메모
-                              </div>
-                              <div style={{ color: "#111827", lineHeight: 1.7, fontSize: "14px" }}>
-                                {record.notes}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                        <span style={{ display: "inline-flex", alignItems: "center", minHeight: "28px", padding: "0 10px", borderRadius: "999px", fontSize: "12px", fontWeight: 800, ...statusStyle }}>
+                          {statusLabel}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <StatePanel kind="empty" compact title="아직 저장한 제출이 없습니다" />
-                )}
+
+                      <div style={{ display: "grid", gap: "12px" }}>
+                        {item.inputModes.includes("memo") && (
+                          <div>
+                            <label htmlFor={`submission-memo-${item.key}`} style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: 800, color: "#111827" }}>
+                              메모
+                            </label>
+                            <textarea
+                              id={`submission-memo-${item.key}`}
+                              value={draft.memo}
+                              onChange={(e) => {
+                                clearSubmitMessage(item.key);
+                                updateSubmissionDraft(item.key, { memo: e.target.value });
+                              }}
+                              placeholder="내용을 입력해 주세요"
+                              rows={3}
+                              disabled={deadlineClosed}
+                              style={{ width: "100%", padding: "10px 12px", borderRadius: "12px", border: "1px solid #d1d5db", outline: "none", fontSize: "14px", background: deadlineClosed ? "#f8fafc" : "#ffffff", resize: "vertical" }}
+                            />
+                          </div>
+                        )}
+
+                        {item.inputModes.includes("text") && (
+                          <div>
+                            <label htmlFor={`submission-text-${item.key}`} style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: 800, color: "#111827" }}>
+                              입력 내용
+                            </label>
+                            <input
+                              id={`submission-text-${item.key}`}
+                              type="text"
+                              value={draft.textValue}
+                              onChange={(e) => {
+                                clearSubmitMessage(item.key);
+                                updateSubmissionDraft(item.key, { textValue: e.target.value });
+                              }}
+                              placeholder="내용을 입력해 주세요"
+                              disabled={deadlineClosed}
+                              style={{ width: "100%", height: "44px", padding: "0 12px", borderRadius: "12px", border: "1px solid #d1d5db", outline: "none", fontSize: "14px", background: deadlineClosed ? "#f8fafc" : "#ffffff" }}
+                            />
+                          </div>
+                        )}
+
+                        {item.inputModes.includes("url") && (
+                          <div>
+                            <label htmlFor={`submission-url-${item.key}`} style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: 800, color: "#111827" }}>
+                              웹 링크
+                            </label>
+                            <input
+                              id={`submission-url-${item.key}`}
+                              type="url"
+                              value={draft.urlValue}
+                              onChange={(e) => {
+                                clearSubmitMessage(item.key);
+                                updateSubmissionDraft(item.key, { urlValue: e.target.value });
+                              }}
+                              placeholder="https://example.com"
+                              disabled={deadlineClosed}
+                              style={{ width: "100%", height: "44px", padding: "0 12px", borderRadius: "12px", border: "1px solid #d1d5db", outline: "none", fontSize: "14px", background: deadlineClosed ? "#f8fafc" : "#ffffff" }}
+                            />
+                          </div>
+                        )}
+
+                        {item.inputModes.includes("file") && (
+                          <div>
+                            <label htmlFor={`submission-file-${item.key}`} style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: 800, color: "#111827" }}>
+                              파일 첨부
+                            </label>
+                            <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "10px" }}>
+                              허용 형식 {item.allowedFileTypes.join(", ")} / 최대 {formatFileSize(MAX_SUBMISSION_FILE_SIZE)}
+                            </div>
+                            <input
+                              id={`submission-file-${item.key}`}
+                              type="file"
+                              accept={item.accept}
+                              disabled={deadlineClosed}
+                              onChange={(e) => {
+                                void handleSelectedFile(item, e.target.files?.[0] ?? null);
+                                e.currentTarget.value = "";
+                              }}
+                              style={{ width: "100%", fontSize: "13px" }}
+                            />
+
+                            {existingFileVisible && record ? (
+                              <div style={{ marginTop: "10px", display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "center", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "10px 12px" }}>
+                                <div style={{ display: "grid", gap: "4px" }}>
+                                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#111827" }}>{record.originalFilename}</div>
+                                  <div style={{ fontSize: "12px", color: "#6b7280" }}>{formatFileSize(record.size ?? 0)}</div>
+                                </div>
+                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                  <button type="button" className="btn btn-secondary" onClick={() => void handleDownloadStoredFile(record)}>
+                                    파일 보기
+                                  </button>
+                                  {!deadlineClosed ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-secondary"
+                                      onClick={() => {
+                                        clearSubmitMessage(item.key);
+                                        updateSubmissionDraft(item.key, { clearExistingFile: true });
+                                      }}
+                                    >
+                                      파일 제거
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {draft.selectedFile ? (
+                              <div style={{ marginTop: "10px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "10px 12px" }}>
+                                <div style={{ fontSize: "13px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>{draft.selectedFileName}</div>
+                                <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "8px" }}>{formatFileSize(draft.selectedFileSize)}</div>
+                                {!deadlineClosed ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => {
+                                      clearSubmitMessage(item.key);
+                                      updateSubmissionDraft(item.key, {
+                                        selectedFile: null,
+                                        selectedFileName: "",
+                                        selectedFileSize: 0,
+                                        selectedFileType: "",
+                                      });
+                                    }}
+                                  >
+                                    파일 제거
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+
+                        {submitErrors[item.key] ? (
+                          <div style={{ borderRadius: "12px", padding: "11px 12px", background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontWeight: 700, fontSize: "14px" }}>
+                            {submitErrors[item.key]}
+                          </div>
+                        ) : null}
+
+                        {submitSuccess[item.key] ? (
+                          <div style={{ borderRadius: "12px", padding: "11px 12px", background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#047857", fontWeight: 700, fontSize: "14px" }}>
+                            {submitSuccess[item.key]}
+                          </div>
+                        ) : null}
+
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                          <button
+                            type="button"
+                            disabled={!currentUserId || deadlineClosed}
+                            onClick={() => void handleSubmitItem(item)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "11px 15px",
+                              borderRadius: "12px",
+                              background: !currentUserId || deadlineClosed ? "#9ca3af" : "#2563eb",
+                              color: "#ffffff",
+                              fontWeight: 800,
+                              border: "none",
+                              cursor: !currentUserId || deadlineClosed ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {record ? "수정 저장" : "제출"}
+                          </button>
+                          {deadlineClosed ? <span style={{ fontSize: "12px", color: "#6b7280" }}>마감 후에는 읽기 전용으로 표시됩니다.</span> : null}
+                        </div>
+
+                        {record ? (
+                          <div style={{ paddingTop: "4px", borderTop: "1px solid #f3f4f6", display: "grid", gap: "4px" }}>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>제출 시간 {formatDate(record.submittedAt)}</div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>마지막 수정 {formatDate(record.updatedAt)}</div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </section>
+                  );
+                })}
               </div>
-            </>
+
+                          </>
           ) : (
             <StatePanel
               kind="empty"
