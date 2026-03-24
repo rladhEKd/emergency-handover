@@ -69,7 +69,7 @@ export default function Navbar() {
                   Login
                 </Link>
                 <Link href="/auth?mode=signup" className={`${styles.authLink} ${styles.authLinkPrimary}`}>
-                  회원가입
+                  {"회원가입"}
                 </Link>
               </div>
             )}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import initialTeams from "../../data/public_teams.json";
 import { useEffect, useMemo, useState } from "react";
 import StatePanel from "../../components/ui/StatePanel";
@@ -11,6 +12,10 @@ import {
   getTeamOwners,
   saveTeamOwners,
 } from "../../lib/local-auth";
+import {
+  findDirectMessageThreadBetweenUsers,
+  sendDirectMessage,
+} from "../../lib/direct-messages";
 
 type Team = {
   teamCode: string;
@@ -87,6 +92,7 @@ function resolveMessageReceiver(teamCode: string, teamOwners: Record<string, str
 }
 
 export default function CampPage() {
+  const router = useRouter();
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamsReady, setTeamsReady] = useState(false);
   const [teamsError, setTeamsError] = useState("");
@@ -320,7 +326,24 @@ export default function CampPage() {
 
   function handleOpenMessageModal(team: Team) {
     if (!currentUserId) {
-      alert("쪽지를 보내려면 Login이 필요합니다.");
+      alert("\uCABD\uC9C0\uB97C \uBCF4\uB0B4\uB824\uBA74 Login\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
+      return;
+    }
+
+    const receiver = resolveMessageReceiver(team.teamCode, teamOwners);
+    if (!receiver) {
+      alert("\uD300 \uC18C\uC720\uC790 \uC815\uBCF4\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+
+    if (receiver.receiverUserId === currentUserId) {
+      alert("\uC790\uAE30 \uC790\uC2E0\uC5D0\uAC8C\uB294 \uCABD\uC9C0\uB97C \uBCF4\uB0BC \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+
+    const existingThread = findDirectMessageThreadBetweenUsers(currentUserId, receiver.receiverUserId);
+    if (existingThread) {
+      router.push(`/messages/${existingThread.id}`);
       return;
     }
 
@@ -336,12 +359,12 @@ export default function CampPage() {
     e.preventDefault();
 
     if (!currentUserId) {
-      setMessageError("쪽지를 보내려면 Login이 필요합니다.");
+      setMessageError("\uCABD\uC9C0\uB97C \uBCF4\uB0B4\uB824\uBA74 Login\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
       return;
     }
 
     if (!messageTitle.trim() || !messageContent.trim()) {
-      setMessageError("제목과 내용을 입력해 주세요.");
+      setMessageError("\uC81C\uBAA9\uACFC \uB0B4\uC6A9\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694.");
       return;
     }
 
@@ -360,7 +383,12 @@ export default function CampPage() {
     const receiver = resolveMessageReceiver(messageTeamCode, teamOwners);
 
     if (!receiver) {
-      setMessageError("팀 소유자 정보를 찾을 수 없습니다.");
+      setMessageError("\uD300 \uC18C\uC720\uC790 \uC815\uBCF4\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+
+    if (receiver.receiverUserId === currentUserId) {
+      setMessageError("\uC790\uAE30 \uC790\uC2E0\uC5D0\uAC8C\uB294 \uCABD\uC9C0\uB97C \uBCF4\uB0BC \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
       return;
     }
 
@@ -382,8 +410,23 @@ export default function CampPage() {
     );
     window.dispatchEvent(new Event(MESSAGE_HUB_CHANGED_EVENT));
 
+    const sent = sendDirectMessage({
+      currentUserId,
+      currentUserNickname: currentNickname || "Member",
+      otherUserId: receiver.receiverUserId,
+      otherUserNickname: receiver.receiverNickname,
+      title: messageTitle.trim(),
+      body: messageContent.trim(),
+      teamCode: messageTeamCode,
+      teamName: messageTeamName,
+    });
+
     resetMessageForm();
-    alert("정상적으로 전송되었습니다.");
+    alert("\uC815\uC0C1\uC801\uC73C\uB85C \uC804\uC1A1\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
+
+    if (sent) {
+      router.push(`/messages/${sent.thread.id}`);
+    }
   }
 
   return (
