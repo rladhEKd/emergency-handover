@@ -2,15 +2,19 @@ import hackathons from "../../../data/public_hackathons.json";
 import detailData from "../../../data/public_hackathon_detail.json";
 import { notFound } from "next/navigation";
 import HackathonDetailClient from "./HackathonDetailClient";
+import type { HackathonOverrideStatusCode, HackathonStatusMode } from "../../../lib/hackathon-status";
 
 export type Hackathon = {
   slug: string;
   title: string;
   status: "ended" | "ongoing" | "upcoming";
+  statusMode?: HackathonStatusMode;
+  statusOverride?: HackathonOverrideStatusCode;
   tags: string[];
   thumbnailUrl: string;
   period: {
     timezone: string;
+    startAt?: string;
     submissionDeadlineAt: string;
     endAt: string;
   };

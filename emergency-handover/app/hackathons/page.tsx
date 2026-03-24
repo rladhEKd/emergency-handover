@@ -1,14 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StatePanel from "../../components/ui/StatePanel";
 import hackathonsData from "../../data/public_hackathons.json";
+import {
+  getHackathonDisplayStatus,
+  getHackathonFilterStatusCode,
+  type HackathonOverrideStatusCode,
+  type HackathonStatusMode,
+} from "../../lib/hackathon-status";
 
 type Hackathon = {
   slug: string;
   title: string;
   status: "ended" | "ongoing" | "upcoming";
+  statusMode?: HackathonStatusMode;
+  statusOverride?: HackathonOverrideStatusCode;
   tags: string[];
   thumbnailUrl: string;
   period: {
@@ -28,17 +36,6 @@ function formatDate(dateString: string) {
   });
 }
 
-function getStatusLabel(status: Hackathon["status"]) {
-  if (status === "ongoing") return "진행중";
-  if (status === "upcoming") return "예정";
-  return "종료";
-}
-
-function getStatusClass(status: Hackathon["status"]) {
-  if (status === "ongoing") return "status-chip status-chip--ongoing";
-  if (status === "upcoming") return "status-chip status-chip--upcoming";
-  return "status-chip status-chip--ended";
-}
 
 function sortHackathons(items: Hackathon[], sort: string) {
   const copied = [...items];
@@ -121,9 +118,15 @@ export default function HackathonsPage() {
   const hasDataError = !Array.isArray(hackathonsData);
 
   const [search, setSearch] = useState("");
+  const [now, setNow] = useState(() => Date.now());
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedTag, setSelectedTag] = useState("all");
   const [sortOption, setSortOption] = useState("deadline-asc");
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const allTags = useMemo(() => {
     return Array.from(new Set(hackathons.flatMap((item) => item.tags))).sort();
@@ -142,7 +145,7 @@ export default function HackathonsPage() {
     }
 
     if (statusFilter !== "all") {
-      result = result.filter((item) => item.status === statusFilter);
+      result = result.filter((item) => getHackathonFilterStatusCode(item, now) === statusFilter);
     }
 
     if (selectedTag !== "all") {
@@ -150,7 +153,7 @@ export default function HackathonsPage() {
     }
 
     return sortHackathons(result, sortOption);
-  }, [hackathons, search, statusFilter, selectedTag, sortOption]);
+  }, [hackathons, now, search, statusFilter, selectedTag, sortOption]);
 
   return (
     <main className="page-shell">
@@ -197,7 +200,7 @@ export default function HackathonsPage() {
               <select id="hackathon-status" className="select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="all">전체</option>
                 <option value="ongoing">진행중</option>
-                <option value="upcoming">예정</option>
+                <option value="scheduled">예정</option>
                 <option value="ended">종료</option>
               </select>
             </div>
@@ -247,7 +250,7 @@ export default function HackathonsPage() {
               <Link key={hackathon.slug} href={`/hackathons/${hackathon.slug}`} className="interactive-card">
                 <article style={cardStyle}>
                   <div style={topRowStyle}>
-                    <span className={getStatusClass(hackathon.status)}>{getStatusLabel(hackathon.status)}</span>
+                    <span className={getHackathonDisplayStatus(hackathon, now).className}>{getHackathonDisplayStatus(hackathon, now).label}</span>
                     <span className="chip">{hackathon.period.timezone}</span>
                   </div>
 

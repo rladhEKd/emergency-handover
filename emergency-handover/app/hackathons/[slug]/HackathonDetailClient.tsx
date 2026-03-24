@@ -19,6 +19,7 @@ import {
   type SubmissionItemSource,
 } from "../../../lib/hackathon-submissions";
 import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../../../lib/local-auth";
+import { getHackathonDisplayStatus } from "../../../lib/hackathon-status";
 import {
   deleteSubmissionFile,
   getSubmissionFileBlob,
@@ -121,29 +122,6 @@ type PendingTeamAction =
 const SUBMISSION_STORAGE_PREFIX = "hackathon-submissions-v1";
 const TEAM_JOIN_REQUESTS_PREFIX = "team-join-requests-v1";
 
-function getStatusText(status: Hackathon["status"]) {
-  switch (status) {
-    case "ongoing":
-      return "진행중";
-    case "ended":
-      return "종료";
-    case "upcoming":
-      return "예정";
-    default:
-      return status;
-  }
-}
-
-function getStatusStyle(status: Hackathon["status"]) {
-  switch (status) {
-    case "ongoing":
-      return { backgroundColor: "#e8f7ea", color: "#1f7a35" };
-    case "ended":
-      return { backgroundColor: "#f3f4f6", color: "#4b5563" };
-    case "upcoming":
-      return { backgroundColor: "#eaf2ff", color: "#2457c5" };
-  }
-}
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString("ko-KR", {
@@ -309,12 +287,18 @@ function StatCard({ label, value, tone = "default" }: { label: string; value: Re
 export default function HackathonDetailClient({ hackathon, details }: { hackathon: Hackathon; details?: DetailHackathon; }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [now, setNow] = useState(() => Date.now());
   const [teams, setTeams] = useState<Team[]>(initialTeams as Team[]);
   const [storageReady, setStorageReady] = useState(false);
   const [teamsError, setTeamsError] = useState("");
   const [joinRequestsError, setJoinRequestsError] = useState("");
   const [submissionLoadError, setSubmissionLoadError] = useState("");
-  const statusStyle = getStatusStyle(hackathon.status);
+  const displayStatus = useMemo(() => getHackathonDisplayStatus(hackathon, now), [hackathon, now]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const fallbackTeams = initialTeams as Team[];
@@ -831,7 +815,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       <section className="page-hero page-hero--dark" style={{ marginBottom: "18px", padding: "24px" }}>
         <div style={{ display: "grid", gap: "14px" }}>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "16px" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", minHeight: "28px", padding: "0 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 800, background: statusStyle.backgroundColor, color: statusStyle.color }}>{getStatusText(hackathon.status)}</span>
+            <span className={displayStatus.className} style={{ display: "inline-flex", alignItems: "center", minHeight: "28px", padding: "0 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 800 }}>{displayStatus.label}</span>
             <span className="chip">{hackathon.period.timezone}</span>
           </div>
 

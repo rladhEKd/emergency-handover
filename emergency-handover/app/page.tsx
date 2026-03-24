@@ -1,15 +1,26 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import hackathonsData from "../data/public_hackathons.json";
 import teamsData from "../data/public_teams.json";
 import leaderboardData from "../data/public_leaderboard.json";
+import {
+  getHackathonDisplayStatus,
+  type HackathonOverrideStatusCode,
+  type HackathonStatusMode,
+} from "../lib/hackathon-status";
 import styles from "./page.module.css";
 
 type Hackathon = {
   slug: string;
   title: string;
   status: "ended" | "ongoing" | "upcoming";
+  statusMode?: HackathonStatusMode;
+  statusOverride?: HackathonOverrideStatusCode;
   tags: string[];
   period: {
+    timezone?: string;
     startAt?: string;
     submissionDeadlineAt: string;
     endAt: string;
@@ -45,17 +56,6 @@ function formatDate(dateString: string) {
   });
 }
 
-function getStatusText(status: Hackathon["status"]) {
-  if (status === "ongoing") return "진행중";
-  if (status === "upcoming") return "예정";
-  return "종료";
-}
-
-function getStatusClass(status: Hackathon["status"]) {
-  if (status === "ongoing") return "status-chip status-chip--ongoing";
-  if (status === "upcoming") return "status-chip status-chip--upcoming";
-  return "status-chip status-chip--ended";
-}
 
 function getHackathonTitle(slug: string) {
   switch (slug) {
@@ -79,6 +79,13 @@ export default function HomePage() {
     { hackathonSlug: leaderboard.hackathonSlug, entries: leaderboard.entries },
     ...(leaderboard.extraLeaderboards ?? []),
   ];
+
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const recentHackathons = hackathons.slice(0, 3);
   const openTeams = teams.filter((team) => team.isOpen).slice(0, 3);
@@ -126,7 +133,7 @@ export default function HomePage() {
                 <Link key={hackathon.slug} href={`/hackathons/${hackathon.slug}`} className={`interactive-card ${styles.cardLink}`}>
                   <article className={styles.hackathonCard}>
                     <div className={styles.cardTopRow}>
-                      <span className={getStatusClass(hackathon.status)}>{getStatusText(hackathon.status)}</span>
+                      <span className={getHackathonDisplayStatus(hackathon, now).className}>{getHackathonDisplayStatus(hackathon, now).label}</span>
                       <span className={styles.metaText}>마감 {formatDate(hackathon.period.submissionDeadlineAt)}</span>
                     </div>
                     <h3 className={styles.cardTitle}>{hackathon.title}</h3>
