@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import initialTeams from "../../data/public_teams.json";
 import { useEffect, useMemo, useState } from "react";
+import initialTeams from "../../data/public_teams.json";
+import hackathonsData from "../../data/public_hackathons.json";
 import StatePanel from "../../components/ui/StatePanel";
 import {
   AUTH_CHANGED_EVENT,
@@ -19,7 +20,7 @@ import {
 
 type Team = {
   teamCode: string;
-  hackathonSlug: string;
+  hackathonSlug?: string;
   name: string;
   isOpen?: boolean;
   memberCount?: number;
@@ -44,8 +45,25 @@ type TeamMessage = {
   createdAt: string;
 };
 
+type HackathonMeta = {
+  slug: string;
+  title: string;
+};
+
+type TeamSection = {
+  key: string;
+  title: string;
+  teams: Team[];
+};
+
 const TEAM_MESSAGES_STORAGE_KEY = "team-messages-v1";
 const MESSAGE_HUB_CHANGED_EVENT = "message-hub-changed";
+const UNASSIGNED_HACKATHON_KEY = "__unassigned__";
+
+const hackathonCatalog = (hackathonsData as HackathonMeta[]).map((item) => ({
+  slug: item.slug,
+  title: item.title,
+}));
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString("ko-KR", {
@@ -57,17 +75,101 @@ function formatDate(dateString: string) {
   });
 }
 
-function getHackathonTitle(slug: string) {
-  switch (slug) {
-    case "aimers-8-model-lite":
-      return "Aimers 8";
-    case "monthly-vibe-coding-2026-02":
-      return "Monthly Vibe Coding 2026.02";
-    case "daker-handover-2026-03":
-      return "Daker Handover 2026.03";
-    default:
-      return slug;
+function decodeEscapedUnicode(value: string) {
+  const normalized = value.replace(/\\u\{/g, String.raw`\u{`).replace(/\\u/g, String.raw`\u`);
+
+  return normalized
+    .replace(/\\u\{([0-9a-fA-F]+)\}/g, (match, hex: string) => {
+      try {
+        return String.fromCodePoint(parseInt(hex, 16));
+      } catch {
+        return match;
+      }
+    })
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+function normalizeDisplayText(value: string | undefined) {
+  if (!value) return "";
+  return decodeEscapedUnicode(value).trim();
+}
+
+function normalizeTeam(team: Team): Team {
+  return {
+    ...team,
+    hackathonSlug: (team.hackathonSlug ?? "").trim(),
+    name: normalizeDisplayText(team.name),
+    intro: normalizeDisplayText(team.intro),
+    lookingFor: (team.lookingFor ?? []).map((item) => normalizeDisplayText(item)).filter(Boolean),
+    contact: team.contact
+      ? {
+          ...team.contact,
+          type: normalizeDisplayText(team.contact.type),
+          url: team.contact.url?.trim() ?? "",
+        }
+      : undefined,
+  };
+}
+
+function compareTeamsByCreatedAtDesc(a: Team, b: Team) {
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
+function normalizeHackathonKey(team: Team, validSlugs: Set<string>) {
+  const slug = (team.hackathonSlug ?? "").trim();
+  if (!slug || !validSlugs.has(slug)) {
+    return UNASSIGNED_HACKATHON_KEY;
   }
+
+  return slug;
+}
+
+function buildTeamSections(filteredTeams: Team[], hackathons: HackathonMeta[], selectedSlug: string) {
+  const validSlugs = new Set(hackathons.map((item) => item.slug));
+  const grouped = new Map<string, Team[]>();
+
+  for (const team of filteredTeams) {
+    const key = selectedSlug || normalizeHackathonKey(team, validSlugs);
+    const bucket = grouped.get(key) ?? [];
+    bucket.push(team);
+    grouped.set(key, bucket);
+  }
+
+  const sections: TeamSection[] = [];
+
+  if (selectedSlug) {
+    const teams = (grouped.get(selectedSlug) ?? []).slice().sort(compareTeamsByCreatedAtDesc);
+    if (teams.length > 0) {
+      const title = hackathons.find((item) => item.slug === selectedSlug)?.title ?? selectedSlug;
+      sections.push({ key: selectedSlug, title, teams });
+    }
+    return sections;
+  }
+
+  for (const hackathon of hackathons) {
+    const teams = grouped.get(hackathon.slug);
+    if (!teams || teams.length === 0) continue;
+    sections.push({
+      key: hackathon.slug,
+      title: hackathon.title,
+      teams: teams.slice().sort(compareTeamsByCreatedAtDesc),
+    });
+  }
+
+  const unassignedTeams = grouped.get(UNASSIGNED_HACKATHON_KEY);
+  if (unassignedTeams && unassignedTeams.length > 0) {
+    sections.push({
+      key: UNASSIGNED_HACKATHON_KEY,
+      title: "해커톤 미지정",
+      teams: unassignedTeams.slice().sort(compareTeamsByCreatedAtDesc),
+    });
+  }
+
+  return sections;
+}
+
+function getHackathonTitle(slug: string) {
+  return hackathonCatalog.find((item) => item.slug === slug)?.title ?? slug;
 }
 
 function makeTeamCode() {
@@ -118,8 +220,9 @@ export default function CampPage() {
   const [messageError, setMessageError] = useState("");
 
   function persistTeams(nextTeams: Team[]) {
-    setTeams(nextTeams);
-    localStorage.setItem("teams", JSON.stringify(nextTeams));
+    const normalizedTeams = nextTeams.map((team) => normalizeTeam(team));
+    setTeams(normalizedTeams);
+    localStorage.setItem("teams", JSON.stringify(normalizedTeams));
   }
 
   function persistOwners(nextOwners: Record<string, string>) {
@@ -147,16 +250,23 @@ export default function CampPage() {
   useEffect(() => {
     const savedTeams = localStorage.getItem("teams");
     let mergedTeams: Team[] = [];
+
     if (savedTeams) {
       try {
         const parsed = JSON.parse(savedTeams) as Team[];
-        mergedTeams = parsed;
+        mergedTeams = Array.isArray(parsed)
+          ? parsed.map((team) => normalizeTeam(team))
+          : (initialTeams as Team[]).map((team) => normalizeTeam(team));
+
+        if (JSON.stringify(mergedTeams) !== savedTeams) {
+          localStorage.setItem("teams", JSON.stringify(mergedTeams));
+        }
       } catch {
-        mergedTeams = initialTeams as Team[];
-        setTeamsError("팀 목록을 불러오는 중 문제가 발생했습니다.");
+        mergedTeams = (initialTeams as Team[]).map((team) => normalizeTeam(team));
+        setTeamsError("? ??? ???? ? ??? ??????.");
       }
     } else {
-      mergedTeams = initialTeams as Team[];
+      mergedTeams = (initialTeams as Team[]).map((team) => normalizeTeam(team));
       localStorage.setItem("teams", JSON.stringify(mergedTeams));
     }
 
@@ -190,20 +300,18 @@ export default function CampPage() {
 
   const filteredTeams = useMemo(() => {
     return teams.filter((team) => {
-      const matchesHackathon = hackathonFilter
-        ? team.hackathonSlug === hackathonFilter
-        : true;
-
-      const matchesOpen = openOnly ? team.isOpen : true;
-
+      const teamSlug = (team.hackathonSlug ?? "").trim();
+      const matchesHackathon = hackathonFilter ? teamSlug === hackathonFilter : true;
+      const matchesOpen = openOnly ? !!team.isOpen : true;
       return matchesHackathon && matchesOpen;
     });
   }, [teams, hackathonFilter, openOnly]);
 
-  const uniqueHackathons = useMemo(() => {
-    const slugs = [...new Set(teams.map((team) => team.hackathonSlug).filter(Boolean))];
-    return slugs;
-  }, [teams]);
+  const teamSections = useMemo(() => {
+    return buildTeamSections(filteredTeams, hackathonCatalog, hackathonFilter);
+  }, [filteredTeams, hackathonFilter]);
+
+  const uniqueHackathons = useMemo(() => hackathonCatalog.map((item) => item.slug), []);
 
   function isOwner(teamCode: string) {
     return !!currentUserId && teamOwners[teamCode] === currentUserId;
@@ -213,12 +321,12 @@ export default function CampPage() {
     e.preventDefault();
 
     if (!currentUserId) {
-      alert("\uD300 \uBAA8\uC9D1\uAE00\uC744 \uC791\uC131\uD558\uAC70\uB098 \uAD00\uB9AC\uD558\uB824\uBA74 Login\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
+      alert("팀 모집글을 작성하거나 관리하려면 Login이 필요합니다.");
       return;
     }
 
     if (!name.trim() || !intro.trim()) {
-      alert("\uD300 \uC774\uB984\uACFC \uC18C\uAC1C\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.");
+      alert("팀 이름과 소개를 입력해 주세요.");
       return;
     }
 
@@ -257,7 +365,6 @@ export default function CampPage() {
             }
           : team
       );
-
       persistTeams(updatedTeams);
       resetForm();
       alert("정상적으로 수정되었습니다.");
@@ -285,7 +392,7 @@ export default function CampPage() {
 
     setEditingTeamCode(team.teamCode);
     setName(team.name);
-    setHackathonSlug(team.hackathonSlug);
+    setHackathonSlug(team.hackathonSlug ?? "");
     setMemberCount(typeof team.memberCount === "number" ? String(team.memberCount) : "");
     setLookingFor((team.lookingFor ?? []).join(", "));
     setIntro(team.intro);
@@ -326,18 +433,18 @@ export default function CampPage() {
 
   function handleOpenMessageModal(team: Team) {
     if (!currentUserId) {
-      alert("\uCABD\uC9C0\uB97C \uBCF4\uB0B4\uB824\uBA74 Login\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
+      alert("쪽지를 보내려면 Login이 필요합니다.");
       return;
     }
 
     const receiver = resolveMessageReceiver(team.teamCode, teamOwners);
     if (!receiver) {
-      alert("\uD300 \uC18C\uC720\uC790 \uC815\uBCF4\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      alert("팀 소유자 정보를 찾을 수 없습니다.");
       return;
     }
 
     if (receiver.receiverUserId === currentUserId) {
-      alert("\uC790\uAE30 \uC790\uC2E0\uC5D0\uAC8C\uB294 \uCABD\uC9C0\uB97C \uBCF4\uB0BC \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      alert("자기 자신에게는 쪽지를 보낼 수 없습니다.");
       return;
     }
 
@@ -359,12 +466,12 @@ export default function CampPage() {
     e.preventDefault();
 
     if (!currentUserId) {
-      setMessageError("\uCABD\uC9C0\uB97C \uBCF4\uB0B4\uB824\uBA74 Login\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
+      setMessageError("쪽지를 보내려면 Login이 필요합니다.");
       return;
     }
 
     if (!messageTitle.trim() || !messageContent.trim()) {
-      setMessageError("\uC81C\uBAA9\uACFC \uB0B4\uC6A9\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694.");
+      setMessageError("제목과 내용을 입력해 주세요.");
       return;
     }
 
@@ -381,14 +488,13 @@ export default function CampPage() {
     }
 
     const receiver = resolveMessageReceiver(messageTeamCode, teamOwners);
-
     if (!receiver) {
-      setMessageError("\uD300 \uC18C\uC720\uC790 \uC815\uBCF4\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      setMessageError("팀 소유자 정보를 찾을 수 없습니다.");
       return;
     }
 
     if (receiver.receiverUserId === currentUserId) {
-      setMessageError("\uC790\uAE30 \uC790\uC2E0\uC5D0\uAC8C\uB294 \uCABD\uC9C0\uB97C \uBCF4\uB0BC \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      setMessageError("자기 자신에게는 쪽지를 보낼 수 없습니다.");
       return;
     }
 
@@ -404,10 +510,7 @@ export default function CampPage() {
       createdAt: new Date().toISOString(),
     };
 
-    localStorage.setItem(
-      TEAM_MESSAGES_STORAGE_KEY,
-      JSON.stringify([nextMessage, ...existingMessages])
-    );
+    localStorage.setItem(TEAM_MESSAGES_STORAGE_KEY, JSON.stringify([nextMessage, ...existingMessages]));
     window.dispatchEvent(new Event(MESSAGE_HUB_CHANGED_EVENT));
 
     const sent = sendDirectMessage({
@@ -422,7 +525,7 @@ export default function CampPage() {
     });
 
     resetMessageForm();
-    alert("\uC815\uC0C1\uC801\uC73C\uB85C \uC804\uC1A1\uB418\uC5C8\uC2B5\uB2C8\uB2E4.");
+    alert("정상적으로 전송되었습니다.");
 
     if (sent) {
       router.push(`/messages/${sent.thread.id}`);
@@ -435,12 +538,12 @@ export default function CampPage() {
         <section className="page-hero page-hero--dark" style={{ padding: "22px", marginBottom: "18px" }}>
           <span className="eyebrow">Team Matching</span>
           <h1 className="hero-title" style={{ marginTop: "10px", marginBottom: "10px" }}>
-            팀원 모집
+            {"팀원 모집"}
           </h1>
           <div className="hero-meta" style={{ marginTop: 0 }}>
-            <span>전체 {teams.length}개</span>
-            <span>모집중 {teams.filter((team) => team.isOpen).length}개</span>
-            <span>현재 목록 {filteredTeams.length}개</span>
+            <span>{"전체 "}{teams.length}{"개"}</span>
+            <span>{"모집중 "}{teams.filter((team) => team.isOpen).length}{"개"}</span>
+            <span>{"현재 목록 "}{filteredTeams.length}{"개"}</span>
           </div>
         </section>
 
@@ -454,12 +557,7 @@ export default function CampPage() {
           <div className="toolbar" style={{ alignItems: "end" }}>
             <div className="field">
               <label htmlFor="camp-filter-hackathon">해커톤</label>
-              <select
-                id="camp-filter-hackathon"
-                value={hackathonFilter}
-                onChange={(e) => setHackathonFilter(e.target.value)}
-                className="select"
-              >
+              <select id="camp-filter-hackathon" value={hackathonFilter} onChange={(e) => setHackathonFilter(e.target.value)} className="select">
                 <option value="">전체</option>
                 {uniqueHackathons.map((slug) => (
                   <option key={slug} value={slug}>
@@ -469,19 +567,9 @@ export default function CampPage() {
               </select>
             </div>
 
-            <label
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                minHeight: "46px",
-                color: "#334155",
-                fontSize: "13px",
-                fontWeight: 700,
-              }}
-            >
+            <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", minHeight: "46px", color: "#334155", fontSize: "13px", fontWeight: 700 }}>
               <input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />
-              모집중만 보기
+              {"모집중만 보기"}
             </label>
           </div>
         </section>
@@ -491,52 +579,39 @@ export default function CampPage() {
             <div>
               <h2 className="section-title">{editingTeamCode ? "팀 모집글 수정" : "팀 모집글 작성"}</h2>
             </div>
-            {currentNickname ? <div className="muted" style={{ fontWeight: 700 }}>현재 Login 사용자 {currentNickname}</div> : null}
+            {currentNickname ? <div className="muted" style={{ fontWeight: 700 }}>{"현재 Login 사용자 "}{currentNickname}</div> : null}
           </div>
 
           {!currentUserId ? (
-            <div
-              style={{
-                borderRadius: "14px",
-                padding: "12px 14px",
-                background: "#f8fafc",
-                border: "1px solid #e5e7eb",
-                color: "#4b5563",
-                marginBottom: "14px",
-              }}
-            >
-              팀 모집글을 작성하거나 관리하려면{" "}
-              <Link href="/auth?mode=login&redirect=/camp" style={{ color: "#2563eb", fontWeight: 800 }}>
-                Login
-              </Link>
-              이 필요합니다.
+            <div style={{ borderRadius: "14px", padding: "12px 14px", background: "#f8fafc", border: "1px solid #e5e7eb", color: "#4b5563", marginBottom: "14px" }}>
+              {"팀 모집글을 작성하거나 관리하려면 "}<Link href="/auth?mode=login&redirect=/camp" style={{ color: "#2563eb", fontWeight: 800 }}>Login</Link>{"이 필요합니다."}
             </div>
           ) : null}
 
           <form onSubmit={handleCreateTeam}>
             <div className="toolbar">
               <div className="field">
-                <label htmlFor="camp-name">{"\uD300\uBA85 *"}</label>
+                <label htmlFor="camp-name">{"팀명 *"}</label>
                 <input id="camp-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="vibe-builders" disabled={!currentUserId} />
               </div>
 
               <div className="field">
-                <label htmlFor="camp-hackathon">{"\uC5F0\uACB0 \uD574\uCEE4\uD1A4 (\uC120\uD0DD)"}</label>
+                <label htmlFor="camp-hackathon">{"연결 해커톤 (선택)"}</label>
                 <select id="camp-hackathon" className="select" value={hackathonSlug} onChange={(e) => setHackathonSlug(e.target.value)} disabled={!currentUserId}>
                   <option value="">연결 안 함</option>
-                  <option value="aimers-8-model-lite">Aimers 8</option>
-                  <option value="monthly-vibe-coding-2026-02">Monthly Vibe Coding 2026.02</option>
-                  <option value="daker-handover-2026-03">Daker Handover 2026.03</option>
+                  {uniqueHackathons.map((slug) => (
+                    <option key={slug} value={slug}>{getHackathonTitle(slug)}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="field">
-                <label htmlFor="camp-member-count">{"\uD300\uC6D0 \uC218 (\uC120\uD0DD)"}</label>
+                <label htmlFor="camp-member-count">{"팀원 수 (선택)"}</label>
                 <input id="camp-member-count" className="input" type="number" min={1} max={10} value={memberCount} onChange={(e) => setMemberCount(e.target.value)} disabled={!currentUserId} />
               </div>
 
               <div className="field">
-                <label htmlFor="camp-open-state">{"\uBAA8\uC9D1 \uC0C1\uD0DC (\uC120\uD0DD)"}</label>
+                <label htmlFor="camp-open-state">{"모집 상태 (선택)"}</label>
                 <select id="camp-open-state" className="select" value={isOpen ? "open" : "closed"} onChange={(e) => setIsOpen(e.target.value === "open")} disabled={!currentUserId}>
                   <option value="open">모집중</option>
                   <option value="closed">모집 마감</option>
@@ -546,20 +621,20 @@ export default function CampPage() {
 
             <div className="stack-md" style={{ marginTop: "16px" }}>
               <div className="field">
-                <label htmlFor="camp-looking-for">{"\uBAA8\uC9D1 \uD3EC\uC9C0\uC158 (\uC120\uD0DD)"}</label>
+                <label htmlFor="camp-looking-for">{"모집 포지션 (선택)"}</label>
                 <input id="camp-looking-for" className="input" value={lookingFor} onChange={(e) => setLookingFor(e.target.value)} placeholder="Frontend, Designer" disabled={!currentUserId} />
-                <div className="field-help">{"\uC785\uB825\uD558\uC9C0 \uC54A\uC544\uB3C4 \uC800\uC7A5\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."}</div>
+                <div className="field-help">{"입력하지 않아도 저장할 수 있습니다."}</div>
               </div>
 
               <div className="field">
-                <label htmlFor="camp-intro">{"\uC18C\uAC1C *"}</label>
-                <textarea id="camp-intro" className="textarea" value={intro} onChange={(e) => setIntro(e.target.value)} placeholder="팀 소개와 모집 내용을 입력해 주세요" rows={4} disabled={!currentUserId} />
+                <label htmlFor="camp-intro">{"소개 *"}</label>
+                <textarea id="camp-intro" className="textarea" value={intro} onChange={(e) => setIntro(e.target.value)} placeholder={"팀 소개와 모집 내용을 입력해 주세요"} rows={4} disabled={!currentUserId} />
               </div>
 
               <div className="field">
-                <label htmlFor="camp-contact-url">공개 연락 링크 (선택)</label>
+                <label htmlFor="camp-contact-url">{"공개 연락 링크 (선택)"}</label>
                 <input id="camp-contact-url" className="input" value={contactUrl} onChange={(e) => setContactUrl(e.target.value)} placeholder="https://open.kakao.com/..." disabled={!currentUserId} />
-                <div className="field-help">오픈채팅 또는 폼 링크처럼 공개 가능한 연락 수단만 입력해 주세요.</div>
+                <div className="field-help">{"오픈채팅 또는 폼 링크처럼 공개 가능한 연락 수단만 입력해 주세요."}</div>
               </div>
             </div>
 
@@ -568,9 +643,7 @@ export default function CampPage() {
                 {editingTeamCode ? "수정하기" : "등록하기"}
               </button>
               {editingTeamCode ? (
-                <button type="button" onClick={handleCancelEdit} className="btn btn-secondary">
-                  취소
-                </button>
+                <button type="button" onClick={handleCancelEdit} className="btn btn-secondary">취소</button>
               ) : null}
             </div>
           </form>
@@ -581,102 +654,82 @@ export default function CampPage() {
             <div>
               <h2 className="section-title">팀 모집글</h2>
             </div>
-            <div className="muted" style={{ fontWeight: 700 }}>총 {filteredTeams.length}개</div>
+            <div className="muted" style={{ fontWeight: 700 }}>{"총 "}{filteredTeams.length}{"개"}</div>
           </div>
 
-          <div style={{ display: "grid", gap: "12px" }}>
+          <div style={{ display: "grid", gap: "16px" }}>
             {!teamsReady ? (
               <StatePanel kind="loading" compact title="팀 목록을 불러오는 중입니다" description="잠시만 기다려 주세요." />
             ) : teamsError ? (
               <StatePanel kind="error" compact title={teamsError} description="다시 시도해 주세요." />
-            ) : filteredTeams.length > 0 ? (
-              filteredTeams.map((team) => {
-                const canManage = isOwner(team.teamCode);
+            ) : teamSections.length > 0 ? (
+              teamSections.map((section) => (
+                <section key={section.key} style={{ display: "grid", gap: "12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid #eef2f7" }}>
+                    <h3 style={{ margin: 0, fontSize: "16px", lineHeight: 1.35, fontWeight: 800 }}>{section.title}</h3>
+                    <div className="muted" style={{ fontSize: "12px", fontWeight: 700 }}>{section.teams.length}{"개"}</div>
+                  </div>
 
-                return (
-                  <article
-                    key={team.teamCode}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "16px",
-                      padding: "16px",
-                      backgroundColor: "#ffffff",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "start", marginBottom: "10px" }}>
-                      <div style={{ display: "grid", gap: "6px" }}>
-                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                          <h3 style={{ margin: 0, fontSize: "18px", lineHeight: 1.3, fontWeight: 800 }}>{team.name}</h3>
-                          {canManage ? <span className="chip">내 모집글</span> : null}
-                        </div>
-                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", color: "#64748b", fontSize: "12px" }}>
-                          <span>{team.hackathonSlug ? getHackathonTitle(team.hackathonSlug) : "연결된 해커톤 없음"}</span>
-                          {typeof team.memberCount === "number" && team.memberCount > 0 ? <span>{"\uC778\uC6D0 "}{team.memberCount}{"\uBA85"}</span> : null}
-                        </div>
-                      </div>
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {section.teams.map((team) => {
+                      const canManage = isOwner(team.teamCode);
 
-                      <span className={team.isOpen ? "status-chip status-chip--open" : "status-chip status-chip--closed"}>
-                        {team.isOpen ? "모집중" : "모집 마감"}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "grid", gap: "10px" }}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                        {(team.lookingFor ?? []).length > 0
-                          ? (team.lookingFor ?? []).map((role) => (
-                              <span key={role} className="tag-chip">
-                                {role}
-                              </span>
-                            ))
-                          : null}
-                      </div>
-
-                      <p style={{ margin: 0, color: "#374151", fontSize: "14px", lineHeight: 1.65 }}>{team.intro}</p>
-
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-                        <div style={{ display: "grid", gap: "6px" }}>
-                          <div className="muted" style={{ fontSize: "12px" }}>등록일 {formatDate(team.createdAt)}</div>
-                          {team.contact?.url ? (
-                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                              <span className="muted" style={{ fontSize: "12px" }}>팀장이 공개한 연락 링크입니다.</span>
-                              <a
-                                href={team.contact?.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-secondary"
-                                style={{ textDecoration: "none" }}
-                              >
-                                공개 연락 링크
-                              </a>
+                      return (
+                        <article key={team.teamCode} style={{ border: "1px solid #e5e7eb", borderRadius: "16px", padding: "16px", backgroundColor: "#ffffff" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "start", marginBottom: "10px" }}>
+                            <div style={{ display: "grid", gap: "6px" }}>
+                              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                                <h4 style={{ margin: 0, fontSize: "18px", lineHeight: 1.3, fontWeight: 800 }}>{team.name}</h4>
+                                {canManage ? <span className="chip">내 모집글</span> : null}
+                              </div>
+                              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", color: "#64748b", fontSize: "12px" }}>
+                                <span>{(team.hackathonSlug ?? "").trim() ? getHackathonTitle((team.hackathonSlug ?? "").trim()) : "연결된 해커톤 없음"}</span>
+                                {typeof team.memberCount === "number" && team.memberCount > 0 ? <span>{"인원 "}{team.memberCount}{"명"}</span> : null}
+                              </div>
                             </div>
-                          ) : null}
-                        </div>
+                            <span className={team.isOpen ? "status-chip status-chip--open" : "status-chip status-chip--closed"}>{team.isOpen ? "모집중" : "모집 마감"}</span>
+                          </div>
 
-                        <div className="inline-actions" style={{ justifyContent: "flex-end" }}>
-                          {canManage ? (
-                            <>
-                              <button type="button" onClick={() => handleEditTeam(team.teamCode)} className="btn btn-secondary">
-                                수정
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleTeamOpen(team.teamCode, !team.isOpen)}
-                                className={team.isOpen ? "btn btn-ghost" : "btn btn-primary"}
-                              >
-                                {team.isOpen ? "모집 마감" : "모집 재오픈"}
-                              </button>
-                            </>
-                          ) : (
-                            <button type="button" onClick={() => handleOpenMessageModal(team)} className="btn btn-primary">
-                              쪽지 보내기
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
+                          <div style={{ display: "grid", gap: "10px" }}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                              {(team.lookingFor ?? []).length > 0 ? (team.lookingFor ?? []).map((role) => <span key={role} className="tag-chip">{role}</span>) : null}
+                            </div>
+
+                            <p style={{ margin: 0, color: "#374151", fontSize: "14px", lineHeight: 1.65 }}>{team.intro}</p>
+
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+                              <div style={{ display: "grid", gap: "6px" }}>
+                                <div className="muted" style={{ fontSize: "12px" }}>{"등록일 "}{formatDate(team.createdAt)}</div>
+                                {team.contact?.url ? (
+                                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                                    <span className="muted" style={{ fontSize: "12px" }}>{"팀장이 공개한 연락 링크입니다."}</span>
+                                    <a href={team.contact.url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ textDecoration: "none" }}>
+                                      {"공개 연락 링크"}
+                                    </a>
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div className="inline-actions" style={{ justifyContent: "flex-end" }}>
+                                {canManage ? (
+                                  <>
+                                    <button type="button" onClick={() => handleEditTeam(team.teamCode)} className="btn btn-secondary">수정</button>
+                                    <button type="button" onClick={() => handleToggleTeamOpen(team.teamCode, !team.isOpen)} className={team.isOpen ? "btn btn-ghost" : "btn btn-primary"}>
+                                      {team.isOpen ? "모집 마감" : "모집 재오픈"}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button type="button" onClick={() => handleOpenMessageModal(team)} className="btn btn-primary">쪽지 보내기</button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))
             ) : (
               <StatePanel kind="empty" compact title="조건에 맞는 팀이 없습니다" description="필터를 변경하거나 새 팀 모집글을 등록해 보세요." />
             )}
@@ -685,121 +738,29 @@ export default function CampPage() {
       </div>
 
       {messageModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px",
-            zIndex: 60,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: "560px",
-              borderRadius: "24px",
-              background: "#ffffff",
-              border: "1px solid #e5e7eb",
-              boxShadow: "0 20px 50px rgba(15, 23, 42, 0.18)",
-              padding: "24px",
-            }}
-          >
-            <h3 style={{ margin: "0 0 10px", fontSize: "24px", fontWeight: 900, color: "#111827" }}>
-              쪽지 보내기
-            </h3>
-            <p style={{ margin: "0 0 16px", color: "#4b5563", lineHeight: 1.7 }}>
-              {messageTeamName} 팀에 쪽지를 보냅니다.
-            </p>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", zIndex: 60 }}>
+          <div style={{ width: "100%", maxWidth: "560px", borderRadius: "24px", background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 20px 50px rgba(15, 23, 42, 0.18)", padding: "24px" }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: "24px", fontWeight: 900, color: "#111827" }}>쪽지 보내기</h3>
+            <p style={{ margin: "0 0 16px", color: "#4b5563", lineHeight: 1.7 }}>{messageTeamName}{" 팀에 쪽지를 보냅니다."}</p>
 
             <form onSubmit={handleSendMessage} style={{ display: "grid", gap: "16px" }}>
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
-                  제목
-                </label>
-                <input
-                  value={messageTitle}
-                  onChange={(e) => setMessageTitle(e.target.value)}
-                  placeholder="제목을 입력해 주세요"
-                  style={{
-                    width: "100%",
-                    height: "48px",
-                    padding: "0 14px",
-                    borderRadius: "14px",
-                    border: "1px solid #d1d5db",
-                    background: "#fbfcfe",
-                  }}
-                />
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>{"제목"}</label>
+                <input value={messageTitle} onChange={(e) => setMessageTitle(e.target.value)} placeholder={"제목을 입력해 주세요"} style={{ width: "100%", height: "48px", padding: "0 14px", borderRadius: "14px", border: "1px solid #d1d5db", background: "#fbfcfe" }} />
               </div>
 
               <div>
-                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>
-                  쪽지 내용
-                </label>
-                <textarea
-                  value={messageContent}
-                  onChange={(e) => setMessageContent(e.target.value)}
-                  placeholder="보낼 내용을 입력해 주세요"
-                  rows={5}
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px",
-                    borderRadius: "14px",
-                    border: "1px solid #d1d5db",
-                    background: "#fbfcfe",
-                    resize: "vertical",
-                  }}
-                />
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: 800, color: "#111827" }}>{"쪽지 내용"}</label>
+                <textarea value={messageContent} onChange={(e) => setMessageContent(e.target.value)} placeholder={"보낼 내용을 입력해 주세요"} rows={5} style={{ width: "100%", padding: "12px 14px", borderRadius: "14px", border: "1px solid #d1d5db", background: "#fbfcfe", resize: "vertical" }} />
               </div>
 
               {messageError ? (
-                <div
-                  style={{
-                    borderRadius: "14px",
-                    padding: "12px 14px",
-                    background: "#fef2f2",
-                    border: "1px solid #fecaca",
-                    color: "#b91c1c",
-                    fontWeight: 700,
-                  }}
-                >
-                  {messageError}
-                </div>
+                <div style={{ borderRadius: "14px", padding: "12px 14px", background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: "14px" }}>{messageError}</div>
               ) : null}
 
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={resetMessageForm}
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: "14px",
-                    border: "1px solid #d1d5db",
-                    background: "#ffffff",
-                    color: "#374151",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                  }}
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: "14px",
-                    border: "none",
-                    background: "#2563eb",
-                    color: "#ffffff",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                  }}
-                >
-                  보내기
-                </button>
+              <div className="inline-actions" style={{ justifyContent: "flex-end" }}>
+                <button type="button" onClick={resetMessageForm} className="btn btn-secondary">취소</button>
+                <button type="submit" className="btn btn-primary">보내기</button>
               </div>
             </form>
           </div>
