@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import StatePanel from "../../components/ui/StatePanel";
 import { AUTH_CHANGED_EVENT, getCurrentSession, getTeamOwners } from "../../lib/local-auth";
 
@@ -68,6 +68,7 @@ type PanelKey = "myTeams" | "receivedRequests" | "sentRequests" | "savedSubmissi
 const TEAM_JOIN_REQUESTS_PREFIX = "team-join-requests-v1:";
 const TEAM_MESSAGES_STORAGE_KEY = "team-messages-v1";
 const SUBMISSION_STORAGE_PREFIX = "hackathon-submissions-v1:";
+const MESSAGE_HUB_CHANGED_EVENT = "message-hub-changed";
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString("ko-KR", {
@@ -233,6 +234,29 @@ function readSavedSubmissionsForUser(userId: string) {
   return collected.sort((a, b) => new Date(b.record.submittedAt).getTime() - new Date(a.record.submittedAt).getTime());
 }
 
+function Overlay({ children, onClose, ariaLabel }: { children: React.ReactNode; onClose: () => void; ariaLabel: string }) {
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          border: "none",
+          background: "rgba(15, 23, 42, 0.22)",
+          padding: 0,
+          margin: 0,
+          zIndex: 71,
+          cursor: "pointer",
+        }}
+      />
+      {children}
+    </>
+  );
+}
+
 function SummaryCard({
   label,
   value,
@@ -296,6 +320,7 @@ export default function DashboardPage() {
     savedSubmissions: [],
   });
   const [teamsByCode, setTeamsByCode] = useState<Record<string, string>>({});
+  const [selectedRequest, setSelectedRequest] = useState<TeamJoinRequest | null>(null);
 
   useEffect(() => {
     function syncDashboard() {
@@ -345,11 +370,13 @@ export default function DashboardPage() {
 
     syncDashboard();
     window.addEventListener(AUTH_CHANGED_EVENT, syncDashboard);
+    window.addEventListener(MESSAGE_HUB_CHANGED_EVENT, syncDashboard);
     window.addEventListener("storage", syncDashboard);
     window.addEventListener("focus", syncDashboard);
 
     return () => {
       window.removeEventListener(AUTH_CHANGED_EVENT, syncDashboard);
+      window.removeEventListener(MESSAGE_HUB_CHANGED_EVENT, syncDashboard);
       window.removeEventListener("storage", syncDashboard);
       window.removeEventListener("focus", syncDashboard);
     };
@@ -357,6 +384,58 @@ export default function DashboardPage() {
 
   const pendingSentRequests = lists.sentRequests.filter((request) => request.status === "pending").length;
   const pendingReceivedRequests = lists.receivedRequests.filter((request) => request.status === "pending").length;
+
+  function updateJoinRequestStatus(item: TeamJoinRequest, nextStatus: "accepted" | "rejected") {
+    if (typeof window === "undefined") return;
+
+    const respondedAt = new Date().toISOString();
+
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key || !key.startsWith(TEAM_JOIN_REQUESTS_PREFIX)) {
+        continue;
+      }
+
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw) as TeamJoinRequest[];
+        if (!Array.isArray(parsed)) continue;
+
+        let changed = false;
+        const nextRequests = parsed.map((request) => {
+          if (request.teamCode === item.teamCode && request.requesterId === item.requesterId && request.createdAt === item.createdAt) {
+            changed = true;
+            return { ...request, status: nextStatus, respondedAt };
+          }
+          return request;
+        });
+
+        if (!changed) continue;
+
+        window.localStorage.setItem(key, JSON.stringify(nextRequests));
+        window.dispatchEvent(new Event(MESSAGE_HUB_CHANGED_EVENT));
+
+        const nextSelected = { ...item, status: nextStatus, respondedAt };
+        setLists((current) => ({
+          ...current,
+          receivedRequests: current.receivedRequests.map((request) =>
+            request.teamCode === item.teamCode && request.requesterId === item.requesterId && request.createdAt === item.createdAt
+              ? nextSelected
+              : request
+          ),
+        }));
+        setSelectedRequest((current) =>
+          current && current.teamCode === item.teamCode && current.requesterId === item.requesterId && current.createdAt === item.createdAt
+            ? nextSelected
+            : current
+        );
+        break;
+      } catch {
+        continue;
+      }
+    }
+  }
 
   if (!userId) {
     return (
@@ -418,6 +497,21 @@ export default function DashboardPage() {
                 <div style={{ color: "#475569", fontSize: "13px" }}>{sanitizeNickname(request.requesterName || request.requesterId)}</div>
                 <div style={{ color: "#64748b", fontSize: "12px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
                 <div style={{ color: "#64748b", fontSize: "12px" }}>{`생성일 ${formatDate(request.createdAt)}`}</div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+                  <button type="button" onClick={() => setSelectedRequest(request)} className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>
+                    상세 보기
+                  </button>
+                  {request.status === "pending" ? (
+                    <>
+                      <button type="button" onClick={() => updateJoinRequestStatus(request, "rejected")} className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>
+                        거절
+                      </button>
+                      <button type="button" onClick={() => updateJoinRequestStatus(request, "accepted")} className="btn btn-primary" style={{ minHeight: "34px", paddingInline: "12px" }}>
+                        수락
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               </article>
             </div>
           );
@@ -442,6 +536,12 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ color: "#64748b", fontSize: "12px" }}>{roleText ? `지원 포지션 ${roleText}` : "지원 포지션 미입력"}</div>
                 <div style={{ color: "#64748b", fontSize: "12px" }}>{`생성일 ${formatDate(request.createdAt)}`}</div>
+                {request.respondedAt ? <div style={{ color: "#64748b", fontSize: "12px" }}>{`처리일 ${formatDate(request.respondedAt)}`}</div> : null}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+                  <button type="button" onClick={() => setSelectedRequest(request)} className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>
+                    상세 보기
+                  </button>
+                </div>
               </article>
             </div>
           );
@@ -505,6 +605,68 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      {selectedRequest ? (
+        <Overlay ariaLabel="요청 상세 닫기" onClose={() => setSelectedRequest(null)}>
+          <div style={{ position: "fixed", right: "20px", bottom: "20px", width: "min(460px, calc(100vw - 24px))", borderRadius: "24px", background: "#ffffff", border: "1px solid #e5e7eb", boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)", zIndex: 72, padding: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", marginBottom: "14px" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontWeight: 800, marginBottom: "6px" }}>받은 요청 상세</div>
+                <div style={{ fontSize: "20px", fontWeight: 900, color: "#111827" }}>{teamsByCode[selectedRequest.teamCode] || selectedRequest.teamCode}</div>
+              </div>
+              <button type="button" onClick={() => setSelectedRequest(null)} className="btn btn-secondary" style={{ minHeight: "34px", paddingInline: "12px" }}>
+                닫기
+              </button>
+            </div>
+
+            {(() => {
+              const badge = getStatusBadge(selectedRequest.status);
+              const roleText = sanitizeRole(selectedRequest.role);
+              const requesterName = sanitizeNickname(selectedRequest.requesterName || selectedRequest.requesterId);
+
+              return (
+                <>
+                  <div style={{ display: "grid", gap: "8px", marginBottom: "16px", color: "#4b5563", fontSize: "14px" }}>
+                    <div>
+                      상태
+                      <span style={{ display: "inline-block", marginLeft: "8px", padding: "4px 10px", borderRadius: "999px", background: badge.background, color: badge.color, fontWeight: 800, fontSize: "12px" }}>{badge.label}</span>
+                    </div>
+                    <div>{`요청자 ${requesterName}`}</div>
+                    <div>{`지원 포지션 ${roleText || "미입력"}`}</div>
+                    <div>{`생성 시각 ${formatDate(selectedRequest.createdAt)}`}</div>
+                    {selectedRequest.respondedAt ? <div>{`처리 시각 ${formatDate(selectedRequest.respondedAt)}`}</div> : null}
+                  </div>
+
+                  {selectedRequest.message?.trim() ? (
+                    <div style={{ marginBottom: "12px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>지원 메시지</div>
+                      <div style={{ borderRadius: "16px", background: "#f8fafc", border: "1px solid #e5e7eb", padding: "14px", color: "#111827", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{selectedRequest.message}</div>
+                    </div>
+                  ) : null}
+
+                  {selectedRequest.portfolioUrl?.trim() ? (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 800, color: "#6b7280", marginBottom: "6px" }}>포트폴리오 또는 GitHub</div>
+                      <a href={selectedRequest.portfolioUrl} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 800, wordBreak: "break-all" }}>{selectedRequest.portfolioUrl}</a>
+                    </div>
+                  ) : null}
+
+                  {selectedRequest.status === "pending" ? (
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest, "rejected")} className="btn btn-secondary">
+                        거절
+                      </button>
+                      <button type="button" onClick={() => updateJoinRequestStatus(selectedRequest, "accepted")} className="btn btn-primary">
+                        수락
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
+          </div>
+        </Overlay>
+      ) : null}
     </main>
   );
 }
