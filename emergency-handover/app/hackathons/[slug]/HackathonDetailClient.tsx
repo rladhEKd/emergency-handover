@@ -121,6 +121,7 @@ type PendingTeamAction =
 
 const SUBMISSION_STORAGE_PREFIX = "hackathon-submissions-v1";
 const TEAM_JOIN_REQUESTS_PREFIX = "team-join-requests-v1";
+const MESSAGE_HUB_CHANGED_EVENT = "message-hub-changed";
 
 
 function formatDate(dateString: string) {
@@ -153,6 +154,41 @@ function getSubmissionStorageKey(slug: string, userId: string) {
 
 function getTeamJoinRequestsStorageKey(slug: string) {
   return `${TEAM_JOIN_REQUESTS_PREFIX}:${slug}`;
+}
+
+function findTeamByCode(teams: Team[], teamCode: string) {
+  return teams.find((team) => team.teamCode === teamCode) ?? null;
+}
+
+function getHackathonMembership(
+  teams: Team[],
+  teamOwners: Record<string, string>,
+  requests: TeamJoinRequest[],
+  userId: string,
+  hackathonSlug: string
+) {
+  const normalizedUserId = userId.trim();
+  const normalizedSlug = hackathonSlug.trim();
+  if (!normalizedUserId || !normalizedSlug) return null;
+
+  const ownedTeam = teams.find(
+    (team) => team.hackathonSlug === normalizedSlug && teamOwners[team.teamCode] === normalizedUserId
+  );
+  if (ownedTeam) {
+    return { kind: "owner" as const, teamCode: ownedTeam.teamCode };
+  }
+
+  const acceptedRequest = requests.find((request) => {
+    if (request.requesterId !== normalizedUserId || request.status !== "accepted") return false;
+    const targetTeam = findTeamByCode(teams, request.teamCode);
+    return !!targetTeam && targetTeam.hackathonSlug === normalizedSlug;
+  });
+
+  if (acceptedRequest) {
+    return { kind: "member" as const, teamCode: acceptedRequest.teamCode };
+  }
+
+  return null;
 }
 
 function isUrlFormat(format: string) {
@@ -413,6 +449,10 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
       ),
     [currentUserId, hackathonTeams, teamOwners]
   );
+  const currentMembership = useMemo(
+    () => getHackathonMembership(hackathonTeams, teamOwners, teamJoinRequests, currentUserId, hackathon.slug),
+    [currentUserId, hackathon.slug, hackathonTeams, teamJoinRequests, teamOwners]
+  );
 
   useEffect(() => {
     try {
@@ -472,6 +512,36 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
     }
   }, [currentUserId, hackathon.slug, submissionItems]);
 
+  useEffect(() => {
+    function syncJoinRequestsFromEvents() {
+      try {
+        const stored = window.localStorage.getItem(getTeamJoinRequestsStorageKey(hackathon.slug));
+        if (!stored) {
+          setJoinRequestsError("");
+          setTeamJoinRequests([]);
+          return;
+        }
+
+        const parsed = JSON.parse(stored) as TeamJoinRequest[];
+        setJoinRequestsError("");
+        setTeamJoinRequests(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setTeamJoinRequests([]);
+        setJoinRequestsError("참여 요청 정보를 불러오는 중 문제가 발생했습니다.");
+      }
+    }
+
+    window.addEventListener(MESSAGE_HUB_CHANGED_EVENT, syncJoinRequestsFromEvents);
+    window.addEventListener("storage", syncJoinRequestsFromEvents);
+    window.addEventListener("focus", syncJoinRequestsFromEvents);
+
+    return () => {
+      window.removeEventListener(MESSAGE_HUB_CHANGED_EVENT, syncJoinRequestsFromEvents);
+      window.removeEventListener("storage", syncJoinRequestsFromEvents);
+      window.removeEventListener("focus", syncJoinRequestsFromEvents);
+    };
+  }, [hackathon.slug]);
+
   function updateSubmissionDraft(itemKey: string, patch: Partial<SubmissionDraft>) {
     setSubmissionDrafts((current) => ({
       ...current,
@@ -499,6 +569,16 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
   }
 
   function handleRequestModalOpen(teamCode: string) {
+    const membership = getHackathonMembership(hackathonTeams, teamOwners, teamJoinRequests, currentUserId, hackathon.slug);
+    if (membership && membership.teamCode !== teamCode) {
+      setRequestFormError(
+        membership.kind === "owner"
+          ? "이미 이 해커톤에서 팀을 운영 중이라 다른 팀에 참여할 수 없습니다."
+          : "이미 이 해커톤의 다른 팀에 소속되어 있어 추가 참여가 불가능합니다."
+      );
+      return;
+    }
+
     resetRequestForm();
     setRequestModalTeamCode(teamCode);
   }
@@ -555,11 +635,12 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
 
     if (pendingTeamAction.type === "request") {
       if (currentUserId) {
+        const membership = getHackathonMembership(hackathonTeams, teamOwners, teamJoinRequests, currentUserId, hackathon.slug);
         const existing = teamJoinRequests.find(
           (request) => request.teamCode === pendingTeamAction.teamCode && request.requesterId === currentUserId
         );
 
-        if (!existing) {
+        if (!existing && (!membership || membership.teamCode === pendingTeamAction.teamCode)) {
           persistTeamJoinRequests([
             {
               teamCode: pendingTeamAction.teamCode,
@@ -573,21 +654,77 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
             },
             ...teamJoinRequests,
           ]);
+        } else if (membership && membership.teamCode !== pendingTeamAction.teamCode) {
+          alert(
+            membership.kind === "owner"
+              ? "이미 이 해커톤에서 팀을 운영 중이라 다른 팀에 참여할 수 없습니다."
+              : "이미 이 해커톤의 다른 팀에 소속되어 있어 추가 참여가 불가능합니다."
+          );
         }
       }
     }
 
     if (pendingTeamAction.type === "review") {
-      const nextRequests = teamJoinRequests.map((request) =>
-        request.teamCode === pendingTeamAction.teamCode && request.requesterId === pendingTeamAction.requesterId
-          ? {
-              ...request,
-              status: pendingTeamAction.nextStatus,
-              respondedAt: new Date().toISOString(),
-            }
-          : request
+      const targetRequest = teamJoinRequests.find(
+        (request) =>
+          request.teamCode === pendingTeamAction.teamCode &&
+          request.requesterId === pendingTeamAction.requesterId &&
+          request.status === "pending"
       );
-      persistTeamJoinRequests(nextRequests);
+
+      if (targetRequest) {
+        const respondedAt = new Date().toISOString();
+        const requesterMembership = getHackathonMembership(
+          hackathonTeams,
+          teamOwners,
+          teamJoinRequests,
+          pendingTeamAction.requesterId,
+          hackathon.slug
+        );
+
+        if (
+          pendingTeamAction.nextStatus === "accepted" &&
+          requesterMembership &&
+          requesterMembership.teamCode !== pendingTeamAction.teamCode
+        ) {
+          alert(
+            requesterMembership.kind === "owner"
+              ? "이 요청자는 이미 이 해커톤에서 다른 팀을 운영 중입니다."
+              : "이 요청자는 이미 이 해커톤의 다른 팀에 소속되어 있습니다."
+          );
+        } else {
+          const reviewedStatus: TeamJoinStatus = pendingTeamAction.nextStatus;
+          const nextRequests = teamJoinRequests.map<TeamJoinRequest>((request) => {
+            const requestTeam = findTeamByCode(hackathonTeams, request.teamCode);
+            const sameHackathon = !!requestTeam && requestTeam.hackathonSlug === hackathon.slug;
+            const sameRequester = request.requesterId === pendingTeamAction.requesterId;
+            const isTarget =
+              request.teamCode === pendingTeamAction.teamCode &&
+              request.requesterId === pendingTeamAction.requesterId &&
+              request.createdAt === targetRequest.createdAt;
+
+            if (isTarget) {
+              return {
+                ...request,
+                status: reviewedStatus,
+                respondedAt,
+              };
+            }
+
+            if (
+              pendingTeamAction.nextStatus === "accepted" &&
+              sameRequester &&
+              sameHackathon &&
+              request.status === "pending"
+            ) {
+              return { ...request, status: "rejected", respondedAt };
+            }
+
+            return request;
+          });
+          persistTeamJoinRequests(nextRequests);
+        }
+      }
     }
 
     setTeamActionModalOpen(false);
@@ -1076,6 +1213,8 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                 {openTeams.slice(0, 3).map((team) => {
                   const isOwner = isTeamOwner(team.teamCode);
                   const myJoinRequest = getMyJoinRequest(team.teamCode);
+                  const blockedByOtherMembership =
+                    !!currentMembership && currentMembership.teamCode !== team.teamCode;
 
                   return (
                     <article
@@ -1128,6 +1267,10 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                       ) : myJoinRequest?.status === "rejected" ? (
                         <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#f3f4f6", color: "#4b5563", fontWeight: 800, fontSize: "13px" }}>
                           거절됨
+                        </span>
+                      ) : blockedByOtherMembership ? (
+                        <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#f3f4f6", color: "#4b5563", fontWeight: 800, fontSize: "13px" }}>
+                          {currentMembership?.kind === "owner" ? "내 팀 운영 중" : "다른 팀 소속"}
                         </span>
                       ) : myJoinRequest?.status === "pending" ? (
                         <span style={{ display: "inline-block", padding: "8px 12px", borderRadius: "999px", background: "#eef4ff", color: "#2457c5", fontWeight: 800, fontSize: "13px" }}>
@@ -1316,6 +1459,7 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
               <button
                 type="button"
                 onClick={() => handleTeamActionStart({ type: "navigate", url: `/camp?hackathon=${hackathon.slug}` })}
+                disabled={!!currentMembership && currentMembership.kind === "member"}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -1326,7 +1470,8 @@ export default function HackathonDetailClient({ hackathon, details }: { hackatho
                   color: "#ffffff",
                   fontWeight: 800,
                   border: "none",
-                  cursor: "pointer",
+                  cursor: !!currentMembership && currentMembership.kind === "member" ? "not-allowed" : "pointer",
+                  opacity: !!currentMembership && currentMembership.kind === "member" ? 0.55 : 1,
                 }}
               >
                 팀 만들기

@@ -205,6 +205,41 @@ function readAllJoinRequests() {
   return collected;
 }
 
+function findTeamByCode(teams: Team[], teamCode: string) {
+  return teams.find((team) => team.teamCode === teamCode) ?? null;
+}
+
+function getHackathonMembership(
+  teams: Team[],
+  teamOwners: Record<string, string>,
+  requests: TeamJoinRequest[],
+  userId: string,
+  hackathonSlug: string
+) {
+  const normalizedUserId = userId.trim();
+  const normalizedSlug = hackathonSlug.trim();
+  if (!normalizedUserId || !normalizedSlug) return null;
+
+  const ownedTeam = teams.find(
+    (team) => team.hackathonSlug === normalizedSlug && teamOwners[team.teamCode] === normalizedUserId
+  );
+  if (ownedTeam) {
+    return { kind: "owner" as const, teamCode: ownedTeam.teamCode };
+  }
+
+  const acceptedRequest = requests.find((request) => {
+    if (request.requesterId !== normalizedUserId || request.status !== "accepted") return false;
+    const targetTeam = findTeamByCode(teams, request.teamCode);
+    return !!targetTeam && targetTeam.hackathonSlug === normalizedSlug;
+  });
+
+  if (acceptedRequest) {
+    return { kind: "member" as const, teamCode: acceptedRequest.teamCode };
+  }
+
+  return null;
+}
+
 function readSavedSubmissionsForUser(userId: string) {
   if (typeof window === "undefined") return [] as SubmissionListItem[];
 
@@ -388,6 +423,28 @@ export default function DashboardPage() {
   function updateJoinRequestStatus(item: TeamJoinRequest, nextStatus: "accepted" | "rejected") {
     if (typeof window === "undefined") return;
 
+    const teams = readStoredTeams();
+    const targetTeam = findTeamByCode(teams, item.teamCode);
+    if (!targetTeam) return;
+
+    const allRequests = readAllJoinRequests();
+    const requesterMembership = getHackathonMembership(
+      teams,
+      getTeamOwners(),
+      allRequests,
+      item.requesterId,
+      targetTeam.hackathonSlug
+    );
+
+    if (nextStatus === "accepted" && requesterMembership && requesterMembership.teamCode !== item.teamCode) {
+      alert(
+        requesterMembership.kind === "owner"
+          ? "이 요청자는 이미 이 해커톤에서 다른 팀을 운영 중입니다."
+          : "이 요청자는 이미 이 해커톤의 다른 팀에 소속되어 있습니다."
+      );
+      return;
+    }
+
     const respondedAt = new Date().toISOString();
 
     for (let index = 0; index < window.localStorage.length; index += 1) {
@@ -404,10 +461,21 @@ export default function DashboardPage() {
 
         let changed = false;
         const nextRequests = parsed.map((request) => {
-          if (request.teamCode === item.teamCode && request.requesterId === item.requesterId && request.createdAt === item.createdAt) {
+          const requestTeam = findTeamByCode(teams, request.teamCode);
+          const sameHackathon = !!requestTeam && requestTeam.hackathonSlug === targetTeam.hackathonSlug;
+          const sameRequester = request.requesterId === item.requesterId;
+          const isTarget =
+            request.teamCode === item.teamCode && request.requesterId === item.requesterId && request.createdAt === item.createdAt;
+
+          if (isTarget) {
             changed = true;
             return { ...request, status: nextStatus, respondedAt };
           }
+
+          if (nextStatus === "accepted" && sameRequester && sameHackathon && request.status === "pending") {
+            return { ...request, status: "rejected", respondedAt };
+          }
+
           return request;
         });
 

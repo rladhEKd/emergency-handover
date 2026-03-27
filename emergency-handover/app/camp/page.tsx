@@ -45,6 +45,13 @@ type TeamMessage = {
   createdAt: string;
 };
 
+type TeamJoinRequest = {
+  teamCode: string;
+  requesterId: string;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
+};
+
 type HackathonMeta = {
   slug: string;
   title: string;
@@ -57,6 +64,7 @@ type TeamSection = {
 };
 
 const TEAM_MESSAGES_STORAGE_KEY = "team-messages-v1";
+const TEAM_JOIN_REQUESTS_PREFIX = "team-join-requests-v1:";
 const MESSAGE_HUB_CHANGED_EVENT = "message-hub-changed";
 const UNASSIGNED_HACKATHON_KEY = "__unassigned__";
 
@@ -193,6 +201,31 @@ function resolveMessageReceiver(teamCode: string, teamOwners: Record<string, str
   };
 }
 
+function readAllJoinRequests() {
+  if (typeof window === "undefined") return [] as TeamJoinRequest[];
+
+  const collected: TeamJoinRequest[] = [];
+
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (!key || !key.startsWith(TEAM_JOIN_REQUESTS_PREFIX)) {
+      continue;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as TeamJoinRequest[];
+      if (!Array.isArray(parsed)) continue;
+      collected.push(...parsed);
+    } catch {
+      continue;
+    }
+  }
+
+  return collected;
+}
+
 export default function CampPage() {
   const router = useRouter();
   const [teams, setTeams] = useState<Team[]>([]);
@@ -212,6 +245,7 @@ export default function CampPage() {
   const [currentUserId, setCurrentUserId] = useState("");
   const [currentNickname, setCurrentNickname] = useState("");
   const [teamOwners, setTeamOwners] = useState<Record<string, string>>({});
+  const [joinRequestVersion, setJoinRequestVersion] = useState(0);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [messageTeamCode, setMessageTeamCode] = useState("");
   const [messageTeamName, setMessageTeamName] = useState("");
@@ -287,14 +321,24 @@ export default function CampPage() {
       setTeamOwners(getTeamOwners());
     }
 
+    function syncJoinRequests() {
+      setJoinRequestVersion((current) => current + 1);
+    }
+
     window.addEventListener(AUTH_CHANGED_EVENT, syncAuthState);
     window.addEventListener("storage", syncAuthState);
     window.addEventListener("storage", syncOwners);
+    window.addEventListener("storage", syncJoinRequests);
+    window.addEventListener(MESSAGE_HUB_CHANGED_EVENT, syncJoinRequests);
+    window.addEventListener("focus", syncJoinRequests);
 
     return () => {
       window.removeEventListener(AUTH_CHANGED_EVENT, syncAuthState);
       window.removeEventListener("storage", syncAuthState);
       window.removeEventListener("storage", syncOwners);
+      window.removeEventListener("storage", syncJoinRequests);
+      window.removeEventListener(MESSAGE_HUB_CHANGED_EVENT, syncJoinRequests);
+      window.removeEventListener("focus", syncJoinRequests);
     };
   }, []);
 
@@ -312,6 +356,30 @@ export default function CampPage() {
   }, [filteredTeams, hackathonFilter]);
 
   const uniqueHackathons = useMemo(() => hackathonCatalog.map((item) => item.slug), []);
+  const allJoinRequests = readAllJoinRequests();
+  const selectedHackathonMembership = useMemo(() => {
+    const normalizedSlug = hackathonSlug.trim();
+    if (!currentUserId || !normalizedSlug) return null;
+
+    const ownedTeam = teams.find(
+      (team) => (team.hackathonSlug ?? "").trim() === normalizedSlug && teamOwners[team.teamCode] === currentUserId
+    );
+    if (ownedTeam) {
+      return { kind: "owner" as const, teamCode: ownedTeam.teamCode };
+    }
+
+    const acceptedRequest = allJoinRequests.find((request) => {
+      if (request.requesterId !== currentUserId || request.status !== "accepted") return false;
+      const targetTeam = teams.find((team) => team.teamCode === request.teamCode);
+      return !!targetTeam && (targetTeam.hackathonSlug ?? "").trim() === normalizedSlug;
+    });
+
+    if (acceptedRequest) {
+      return { kind: "member" as const, teamCode: acceptedRequest.teamCode };
+    }
+
+    return null;
+  }, [allJoinRequests, currentUserId, hackathonSlug, teamOwners, teams]);
 
   function isOwner(teamCode: string) {
     return !!currentUserId && teamOwners[teamCode] === currentUserId;
@@ -332,6 +400,21 @@ export default function CampPage() {
 
     if (editingTeamCode && !isOwner(editingTeamCode)) {
       alert("팀 소유자만 수정할 수 있습니다.");
+      return;
+    }
+
+    if (
+      hackathonSlug.trim() &&
+      selectedHackathonMembership &&
+      (!editingTeamCode ||
+        selectedHackathonMembership.kind !== "owner" ||
+        selectedHackathonMembership.teamCode !== editingTeamCode)
+    ) {
+      alert(
+        selectedHackathonMembership.kind === "owner"
+          ? "이미 이 해커톤에서 팀을 운영 중이라 다른 팀을 추가로 만들 수 없습니다."
+          : "이미 이 해커톤의 다른 팀에 소속되어 있어 새 팀을 만들 수 없습니다."
+      );
       return;
     }
 
